@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:turso.tech)",
+      "WebFetch(domain:docs.astro.build)",
+      "WebFetch(domain:docs.turso.tech)",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "Bash(chmod:*)",
+      "Bash(bun install:*)",
+      "Bash(bun info:*)",
+      "Bash(bun pm ls:*)",
+      "Bash(rm:*)",
+      "Bash(./src/cli.js new:*)",
+      "Bash(bun run:*)",
+      "Bash(curl:*)",
+      "Bash(pkill:*)",
+      "Bash(sqlite3:*)",
+      "WebFetch(domain:bitbons.ai)"
+    ],
+    "deny": []
+  }
+}

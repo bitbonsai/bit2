@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+bun.lockb
+
+# Test projects (created during development)
+test-*/
+
+# Development
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Build output (if any)
+dist/

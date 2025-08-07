@@ -1,0 +1,20 @@
+{
+  "name": "template-project",
+  "type": "module",
+  "version": "0.0.1",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "latest",
+    "@libsql/client": "latest",
+    "astro": "latest"
+  },
+  "devDependencies": {
+    "@types/node": "latest"
+  }
+}
