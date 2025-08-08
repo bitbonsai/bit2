@@ -19,7 +19,19 @@
       "Bash(curl:*)",
       "Bash(pkill:*)",
       "Bash(sqlite3:*)",
-      "WebFetch(domain:bitbons.ai)"
+      "WebFetch(domain:bitbons.ai)",
+      "Bash(../src/cli.js deploy)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(../src/cli.js build)",
+      "Bash(../src/cli.js --help)",
+      "Bash(npm create:*)",
+      "WebFetch(domain:mcp.docs.astro.build)",
+      "WebFetch(domain:docs.cursor.com)",
+      "Bash(../src/cli.js status)",
+      "Bash(./src/cli.js status:*)",
+      "Bash(find:*)"
     ],
     "deny": []
   }

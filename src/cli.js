@@ -4,8 +4,10 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import { newCommand } from './commands/new.js';
 import { devCommand } from './commands/dev.js';
+import { buildCommand } from './commands/build.js';
 import { deployCommand } from './commands/deploy.js';
 import { migrateCommand } from './commands/migrate.js';
+import { statusCommand } from './commands/status.js';
 import { testCommand } from './commands/test.js';
 
 const program = new Command();
@@ -26,6 +28,11 @@ program
   .action(devCommand);
 
 program
+  .command('build')
+  .description('Build the Astro application for production')
+  .action(buildCommand);
+
+program
   .command('deploy')
   .description('Setup GitHub repo + Turso DB + display CF setup steps')
   .action(deployCommand);
@@ -34,6 +41,11 @@ program
   .command('migrate')
   .description('Run database migrations')
   .action(migrateCommand);
+
+program
+  .command('status')
+  .description('Check project health and deployment status')
+  .action(statusCommand);
 
 program
   .command('test')

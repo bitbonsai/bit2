@@ -10,6 +10,20 @@ const __dirname = path.dirname(__filename);
 export async function newCommand(projectName) {
   console.log(chalk.blue(`🚀 Creating new Astro + libSQL project: ${chalk.bold(projectName)}`));
   
+  // Check for bun
+  try {
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+    await execAsync('bun --version');
+  } catch (error) {
+    console.log();
+    console.log(chalk.red('❌ Bun is required to create and run bit2 projects'));
+    console.log(chalk.yellow('Install with:'), chalk.cyan('curl -fsSL https://bun.sh/install | bash'));
+    console.log();
+    process.exit(1);
+  }
+  
   const spinner = ora('Setting up project...').start();
   
   try {
@@ -34,6 +48,12 @@ export async function newCommand(projectName) {
     const packageJson = await fs.readJson(packageJsonPath);
     packageJson.name = projectName;
     await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
+    
+    // Update README.md with project name
+    const readmePath = path.join(projectPath, 'README.md');
+    let readmeContent = await fs.readFile(readmePath, 'utf8');
+    readmeContent = readmeContent.replace(/PROJECT_NAME/g, projectName);
+    await fs.writeFile(readmePath, readmeContent);
     
     spinner.succeed();
     
@@ -111,9 +131,15 @@ console.log('Database initialized');
     
     console.log(chalk.green('✅ Project created and initialized successfully!'));
     console.log();
+    console.log(chalk.bgGreen.black(' SUCCESS '), chalk.green('Your project is ready!'));
+    console.log();
+    console.log(chalk.yellow('✨ MCP-enabled'), chalk.gray('for AI assistants (Cursor, Claude Desktop, Windsurf, etc.)'));
+    console.log();
     console.log(chalk.cyan('Next steps:'));
     console.log(chalk.gray(`  cd ${projectName}`));
     console.log(chalk.gray('  bit2 dev'));
+    console.log();
+    console.log(chalk.gray('or check project status:'), chalk.white(`bit2 status`));
     console.log();
     
   } catch (error) {

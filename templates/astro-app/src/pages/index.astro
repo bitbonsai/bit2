@@ -2,8 +2,9 @@
 import Layout from '../components/Layout.astro';
 import { getPosts, getUsers } from '../lib/db';
 
-const posts = await getPosts();
-const users = await getUsers();
+const { runtime } = Astro.locals;
+const posts = await getPosts(runtime);
+const users = await getUsers(runtime);
 ---
 
 <Layout title="Welcome to bit2">
@@ -22,7 +23,7 @@ const users = await getUsers();
       <div class="status-bar">
         <div class="status-item">
           <span class="status-label">Database:</span>
-          <span class="status-value">{import.meta.env.NODE_ENV === 'development' ? 'SQLite' : 'Turso'}</span>
+          <span class="status-value">{import.meta.env.DEV ? 'SQLite' : 'Turso'}</span>
         </div>
         <div class="status-item">
           <span class="status-label">Users:</span>

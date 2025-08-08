@@ -20,6 +20,19 @@ export async function deployCommand() {
     const packageJson = await fs.readJson('./package.json');
     const projectName = packageJson.name;
     
+    // Get Astro and Cloudflare adapter versions
+    let astroVersion = 'latest';
+    let cfAdapterVersion = 'latest';
+    try {
+      const { stdout: versionOutput } = await execAsync('bun pm ls');
+      const astroMatch = versionOutput.match(/astro@(\d+\.\d+\.\d+)/);
+      const cfMatch = versionOutput.match(/@astrojs\/cloudflare@(\d+\.\d+\.\d+)/);
+      if (astroMatch) astroVersion = astroMatch[1];
+      if (cfMatch) cfAdapterVersion = cfMatch[1];
+    } catch (error) {
+      // Fall back to 'latest' if we can't get versions
+    }
+    
     // Setup Turso database
     spinner.start('Setting up Turso database...');
     const dbInfo = await setupTursoDatabase(projectName);
@@ -31,7 +44,7 @@ export async function deployCommand() {
     spinner.succeed('GitHub repository created');
     
     // Display Cloudflare Pages setup instructions
-    displayCloudflareSetup(projectName, dbInfo);
+    displayCloudflareSetup(projectName, dbInfo, astroVersion, cfAdapterVersion);
     
   } catch (error) {
     spinner.fail();
@@ -42,15 +55,35 @@ export async function deployCommand() {
 
 async function checkPrerequisites() {
   const commands = [
-    { cmd: 'turso', args: ['--version'], name: 'Turso CLI' },
-    { cmd: 'gh', args: ['--version'], name: 'GitHub CLI' }
+    { 
+      cmd: 'bun', 
+      args: ['--version'], 
+      name: 'Bun',
+      install: 'curl -fsSL https://bun.sh/install | bash'
+    },
+    { 
+      cmd: 'turso', 
+      args: ['--version'], 
+      name: 'Turso CLI',
+      install: 'curl -sSfL https://get.tur.so/install.sh | bash'
+    },
+    { 
+      cmd: 'gh', 
+      args: ['--version'], 
+      name: 'GitHub CLI',
+      install: 'https://cli.github.com/manual/installation'
+    }
   ];
   
   for (const command of commands) {
     try {
       await execAsync(`${command.cmd} ${command.args.join(' ')}`);
     } catch (error) {
-      throw new Error(`${command.name} not found. Please install it first.`);
+      console.log();
+      console.log(chalk.red(`❌ ${command.name} not found`));
+      console.log(chalk.yellow('Install with:'), chalk.cyan(command.install));
+      console.log();
+      throw new Error(`${command.name} is required for deployment`);
     }
   }
   
@@ -58,20 +91,43 @@ async function checkPrerequisites() {
   try {
     await execAsync('turso auth whoami');
   } catch (error) {
-    throw new Error('Not authenticated with Turso. Run: turso auth signup');
+    console.log();
+    console.log(chalk.yellow('⚠️  Not authenticated with Turso'));
+    console.log(chalk.cyan('Run:'), chalk.white('turso auth signup'));
+    console.log();
+    throw new Error('Turso authentication required');
   }
   
   // Check if user is authenticated with GitHub
   try {
     await execAsync('gh auth status');
   } catch (error) {
-    throw new Error('Not authenticated with GitHub. Run: gh auth login');
+    console.log();
+    console.log(chalk.yellow('⚠️  Not authenticated with GitHub'));
+    console.log(chalk.cyan('Run:'), chalk.white('gh auth login'));
+    console.log();
+    throw new Error('GitHub authentication required');
   }
 }
 
 async function setupTursoDatabase(projectName) {
-  // Create database
-  await execAsync(`turso db create ${projectName}`);
+  // Check if database already exists
+  let databaseExists = false;
+  try {
+    await execAsync(`turso db show ${projectName}`);
+    databaseExists = true;
+    console.log(chalk.yellow(`  ℹ Using existing Turso database: ${projectName}`));
+  } catch (error) {
+    try {
+      // Database doesn't exist, create it
+      await execAsync(`turso db create ${projectName}`);
+    } catch (createError) {
+      if (createError.message.includes('not logged in') || createError.message.includes('authentication')) {
+        throw new Error('Turso authentication failed. Database was not created. Run: turso auth signup');
+      }
+      throw createError;
+    }
+  }
   
   // Get database URL
   const { stdout: urlOutput } = await execAsync(`turso db show --url ${projectName}`);
@@ -85,7 +141,21 @@ async function setupTursoDatabase(projectName) {
   const fs = await import('fs-extra');
   if (await fs.pathExists('./src/db/schema.sql')) {
     const schema = await fs.readFile('./src/db/schema.sql', 'utf8');
-    await execAsync(`turso db shell ${projectName} "${schema}"`);
+    
+    // Split SQL into individual statements and clean them
+    const statements = schema
+      .split('\n')
+      .filter(line => !line.trim().startsWith('--') && line.trim() !== '')
+      .join('\n')
+      .split(';')
+      .map(stmt => stmt.trim())
+      .filter(stmt => stmt.length > 0);
+    
+    // Execute each statement separately
+    for (const statement of statements) {
+      const cleanStatement = statement.replace(/'/g, "'\"'\"'");
+      await execAsync(`turso db shell ${projectName} '${cleanStatement};'`);
+    }
   }
   
   return { databaseUrl, authToken };
@@ -93,33 +163,86 @@ async function setupTursoDatabase(projectName) {
 
 async function setupGitHubRepository(projectName) {
   // Initialize git if not already done
+  let isGitRepo = false;
   try {
     await execAsync('git status');
+    isGitRepo = true;
   } catch (error) {
     await execAsync('git init');
     await execAsync('git add .');
     await execAsync('git commit -m "Initial commit"');
   }
   
-  // Create GitHub repository
-  await execAsync(`gh repo create ${projectName} --private --source=. --remote=origin --push`);
+  // Check if GitHub repo already exists
+  let repoExists = false;
+  try {
+    await execAsync(`gh repo view ${projectName}`);
+    repoExists = true;
+  } catch (error) {
+    // Repo doesn't exist, we'll create it
+  }
+  
+  if (repoExists) {
+    console.log(chalk.yellow(`  ℹ GitHub repository already exists: ${projectName}`));
+    
+    // Check if remote is set
+    try {
+      await execAsync('git remote get-url origin');
+      // Remote exists, just push
+      console.log(chalk.gray('  → Pushing latest changes...'));
+      await execAsync('git push -u origin main').catch(() => {
+        // Try master if main doesn't work
+        return execAsync('git push -u origin master');
+      });
+    } catch (error) {
+      // Set remote and push
+      console.log(chalk.gray('  → Setting remote and pushing...'));
+      await execAsync(`git remote add origin https://github.com/$(gh api user --jq .login)/${projectName}.git`);
+      await execAsync('git push -u origin main').catch(() => {
+        return execAsync('git push -u origin master');
+      });
+    }
+  } else {
+    // Create new GitHub repository
+    await execAsync(`gh repo create ${projectName} --private --source=. --remote=origin --push`);
+  }
 }
 
-function displayCloudflareSetup(projectName, dbInfo) {
+function displayCloudflareSetup(projectName, dbInfo, astroVersion, cfAdapterVersion) {
   console.log();
-  console.log(chalk.blue('🚀 Cloudflare Pages Setup Instructions:'));
+  console.log(chalk.bgYellow.black(' CLOUDFLARE PAGES DEPLOYMENT '));
   console.log();
-  console.log(chalk.cyan('1.'), 'Go to dashboard.cloudflare.com → Workers & Pages → Create → Pages → Connect to Git');
-  console.log(chalk.cyan('2.'), `Select GitHub repo: ${chalk.bold(projectName)}`);
-  console.log(chalk.cyan('3.'), 'Build settings:');
-  console.log(chalk.gray('   - Framework preset: Astro'));
-  console.log(chalk.gray('   - Build command: bun run build'));
-  console.log(chalk.gray('   - Build output directory: dist'));
-  console.log(chalk.cyan('4.'), 'Environment variables:');
-  console.log(chalk.gray(`   - TURSO_DATABASE_URL: ${dbInfo.databaseUrl}`));
-  console.log(chalk.gray(`   - TURSO_AUTH_TOKEN: ${dbInfo.authToken}`));
-  console.log(chalk.cyan('5.'), chalk.green('Save and Deploy!'));
+  
+  // Step 1: Dashboard URL
+  console.log(chalk.cyan('Step 1:'), chalk.white('Open Cloudflare Dashboard'));
+  console.log(chalk.gray('  →'), chalk.underline.blue('https://dash.cloudflare.com'));
+  console.log(chalk.gray('  → Navigate to: Developer Platform → Create Application → Pages → Import an existing Git repository'));
   console.log();
-  console.log(chalk.green('✅ Auto-deploys on every push to main'));
+  
+  // Step 2: Repository
+  console.log(chalk.cyan('Step 2:'), chalk.white('Select GitHub Repository'));
+  console.log(chalk.gray('  →'), chalk.yellow.bold(projectName));
+  console.log();
+  
+  // Step 3: Build Configuration
+  console.log(chalk.cyan('Step 3:'), chalk.white('Configure Build Settings'));
+  console.log(chalk.gray('  →'), chalk.white('Framework preset:'), chalk.green(`Astro v${astroVersion}`));
+  console.log(chalk.gray('  →'), chalk.white('CF Adapter:      '), chalk.green(`v${cfAdapterVersion}`));
+  console.log(chalk.gray('  →'), chalk.white('Build command:   '), chalk.green('bit2 build'), chalk.gray('(or bun run build)'));
+  console.log(chalk.gray('  →'), chalk.white('Output directory:'), chalk.green('/dist'));
+  console.log();
+  
+  // Step 4: Environment Variables
+  console.log(chalk.cyan('Step 4:'), chalk.white('Add Environment Variables'));
+  console.log(chalk.gray('  →'), chalk.yellow('TURSO_DATABASE_URL:'), chalk.gray(dbInfo.databaseUrl));
+  console.log(chalk.gray('  →'), chalk.yellow('TURSO_AUTH_TOKEN:'), chalk.gray(dbInfo.authToken));
+  console.log();
+  
+  // Step 5: Deploy
+  console.log(chalk.cyan('Step 5:'), chalk.green.bold('Save and Deploy! 🚀'));
+  console.log();
+  
+  // Success message
+  console.log(chalk.bgGreen.black(' SUCCESS '), chalk.green('Your app will auto-deploy on every push to main branch'));
   console.log();
 }

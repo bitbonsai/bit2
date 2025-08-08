@@ -12,7 +12,8 @@
   "dependencies": {
     "@astrojs/cloudflare": "latest",
     "@libsql/client": "latest",
-    "astro": "latest"
+    "astro": "latest",
+    "astro-mcp": "latest"
   },
   "devDependencies": {
     "@types/node": "latest"

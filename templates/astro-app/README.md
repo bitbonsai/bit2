@@ -2,6 +2,8 @@
 
 A modern web application built with [bit2](https://github.com/bitbons-ai/bit2) - featuring Astro, libSQL/Turso, and Cloudflare Pages.
 
+✨ **MCP-enabled** for AI assistants (Cursor, Claude Desktop, Windsurf, etc.)
+
 ## 🚀 Tech Stack
 
 - **[Astro](https://astro.build/)** - Modern web framework with SSR
@@ -39,8 +41,10 @@ All commands are run from the root of the project, from a terminal:
 | Command                | Action                                           |
 | :----------------------| :----------------------------------------------- |
 | `bun install`          | Installs dependencies                            |
-| `bun run dev`          | Starts local dev server at `localhost:4321`     |
-| `bun run build`        | Build your production site to `./dist/`         |
+| `bit2 dev`             | Starts local dev server at `localhost:4321`     |
+| `bun run dev`          | ↳ _Alternative: same as above_                   |
+| `bit2 build`           | Build your production site to `/dist/`          |
+| `bun run build`        | ↳ _Alternative: same as above_                   |
 | `bun run preview`      | Preview your build locally, before deploying    |
 | `bit2 migrate`         | Run database migrations                          |
 | `bit2 deploy`          | Deploy to Cloudflare Pages                       |
@@ -74,7 +78,7 @@ TURSO_AUTH_TOKEN=your_auth_token_here
 ### Build Settings
 
 - **Framework preset**: Astro
-- **Build command**: `bun run build`
+- **Build command**: `bit2 build` (or `bun run build`)
 - **Build output directory**: `dist`
 
 ## 📖 API Endpoints
@@ -83,6 +87,22 @@ TURSO_AUTH_TOKEN=your_auth_token_here
 - `POST /api/users.json` - Create a new user
 - `GET /api/posts.json` - Fetch all posts with user info
 - `POST /api/posts.json` - Create a new post
+
+## 🤖 AI Assistant Integration (MCP)
+
+This project is pre-configured with [Model Context Protocol (MCP)](https://github.com/morinokami/astro-mcp) support for AI coding assistants:
+
+- **Cursor**: Automatically detects `.cursor/mcp.json`
+- **Claude Desktop**: Uses `.mcp.json`  
+- **Windsurf**: Configure in `~/.codeium/windsurf/mcp_config.json`
+- **VS Code**: Uses `.vscode/mcp.json`
+
+When you run `bit2 dev`, the MCP server starts at `http://localhost:4321/__mcp/sse`, giving AI assistants access to:
+- Project structure and files
+- Database schema and data
+- API endpoints and responses
+
+No additional setup needed - it just works! ✨
 
 ## 🛠️ Development
 
@@ -98,7 +118,8 @@ TURSO_AUTH_TOKEN=your_auth_token_here
 
 3. **Start development server**:
    ```bash
-   bun run dev
+   bit2 dev
+   # or: bun run dev
    ```
 
 4. **Visit your app**: Open [http://localhost:4321](http://localhost:4321)
