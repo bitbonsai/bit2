@@ -1,35 +1,24 @@
 import { createClient } from "@libsql/client";
 
 function getEnvVars(runtime?: { env: any }, request?: Request): any {
-  // Try multiple access patterns for environment variables
+  // In Cloudflare Pages with Astro, environment variables are available via runtime.env
+  // This is the standard way to access runtime environment variables in CF Pages
+  if (runtime?.env) {
+    return runtime.env;
+  }
+
+  // Fallback to other sources for development or other environments
   const sources = [
-    // Cloudflare Pages Functions context
-    runtime?.env,
-    (runtime as any)?.runtime?.env,
-    (request as any)?.cf?.env,
-    // Node.js process environment
+    // Node.js process environment (development)
     typeof process !== 'undefined' ? process.env : undefined,
-    // Vite/Astro meta environment
+    // Vite/Astro meta environment (build-time variables only)
     import.meta.env
   ];
 
   let workingEnv: any = {};
-
-  // Try each source until we find the env vars
   for (const source of sources) {
-    if (source?.TURSO_DATABASE_URL && source?.TURSO_AUTH_TOKEN) {
-      workingEnv = source;
-      break;
-    }
-  }
-
-  // Fallback: merge all available env vars from all sources
-  if (!workingEnv.TURSO_DATABASE_URL || !workingEnv.TURSO_AUTH_TOKEN) {
-    workingEnv = {};
-    for (const source of sources) {
-      if (source) {
-        Object.assign(workingEnv, source);
-      }
+    if (source) {
+      Object.assign(workingEnv, source);
     }
   }
 
@@ -37,7 +26,7 @@ function getEnvVars(runtime?: { env: any }, request?: Request): any {
 }
 
 // For components and API routes that have access to runtime
-export function createDbClient(runtime?: { env: any }, request?: Request) {
+export function createDbClient(runtime?: { env?: any }, request?: Request) {
   if (import.meta.env.DEV) {
     // Local development - use SQLite file
     return createClient({
@@ -45,13 +34,15 @@ export function createDbClient(runtime?: { env: any }, request?: Request) {
     });
   }
   
-  // Production - try multiple sources for environment variables
+  // Production - get environment variables from runtime
   const env = getEnvVars(runtime, request);
   const dbUrl = env.TURSO_DATABASE_URL;
   const authToken = env.TURSO_AUTH_TOKEN;
   
   if (!dbUrl) {
-    throw new Error("TURSO_DATABASE_URL is required in production");
+    console.error("Available env keys:", Object.keys(env));
+    console.error("Runtime structure:", JSON.stringify(runtime, null, 2));
+    throw new Error("TURSO_DATABASE_URL is required in production. Check environment variables in Cloudflare Pages dashboard.");
   }
   
   return createClient({
