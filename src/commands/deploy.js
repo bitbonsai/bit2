@@ -506,8 +506,14 @@ async function deployToCloudflare(projectName) {
     // Deploy to Cloudflare Pages
     const { stdout } = await execAsync(`bunx wrangler pages deploy dist --project-name=${projectName}`);
     
-    // Extract URL from output (simplified - may need regex parsing)
-    const url = `https://${projectName}.pages.dev`;
+    // Extract URL from wrangler output
+    let url = `https://${projectName}.pages.dev`; // fallback
+    
+    // Look for the actual URL in wrangler output
+    const urlMatch = stdout.match(/https:\/\/[^\s]+\.pages\.dev/);
+    if (urlMatch) {
+      url = urlMatch[0];
+    }
     
     return { url, output: stdout };
   } catch (error) {
