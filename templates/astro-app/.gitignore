@@ -40,3 +40,6 @@ bun.lockb
 # Temporary files
 *.tmp
 temp-*.mjs
+
+# bit2 CLI configuration
+.bit2

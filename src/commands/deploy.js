@@ -124,7 +124,7 @@ async function deployAutomated() {
     // Save account ID for future operations
     try {
       const fs = await import('fs-extra');
-      await fs.writeJson('.bit2-config.json', {
+      await fs.writeJson('.bit2', {
         cloudflareAccountId: pageInfo.accountId,
         projectName: projectName
       }, { spaces: 2 });
@@ -512,10 +512,11 @@ async function setupGitHubSecrets(projectName, dbInfo, accountId = null, spinner
     const tokenUrl = 'https://dash.cloudflare.com/profile/api-tokens';
     console.log(chalk.white('Create a Cloudflare API token:'));
     console.log(chalk.blue(`  → Open: ${tokenUrl}`));
-    console.log(chalk.gray('  1. Select "Create Token" → "Custom token"'));
-    console.log(chalk.gray('  2. Set permissions: Account=Read, Zone=Read, Cloudflare Pages=Edit'));
-    console.log(chalk.gray('  3. Click "Continue to summary" → "Create Token"'));
-    console.log(chalk.gray('  4. Copy the token and paste below'));
+    console.log(chalk.gray('  1. Select "Create Token" → "Custom token" → "Get started"'));
+    console.log(chalk.gray('  2. Add permissions: Account → "Cloudflare Pages:Edit"'));
+    console.log(chalk.gray('  3. Optionally add: Zone → "Zone:Read" (if you use custom domains)'));
+    console.log(chalk.gray('  4. Click "Continue to summary" → "Create Token"'));
+    console.log(chalk.gray('  5. Copy the token and paste below'));
     console.log();
     
     // Get API token from user input

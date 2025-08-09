@@ -238,9 +238,9 @@ async function checkCloudflarePages() {
       try {
         const fs = await import('fs-extra');
         
-        // Check for local .bit2-config file
-        if (await fs.pathExists('.bit2-config.json')) {
-          const config = await fs.readJson('.bit2-config.json');
+        // Check for local .bit2 config file
+        if (await fs.pathExists('.bit2')) {
+          const config = await fs.readJson('.bit2');
           if (config.cloudflareAccountId) {
             accountId = config.cloudflareAccountId;
           }
