@@ -15,7 +15,7 @@ export async function statusCommand() {
     { name: 'Database', check: checkDatabase },
     { name: 'Git Repository', check: checkGitRepo },
     { name: 'Turso Database', check: checkTursoDatabase },
-    { name: 'Cloudflare Pages', check: checkCloudflarePages },
+    { name: 'Vercel Deployment', check: checkVercelDeployment },
     { name: 'Deployment Status', check: checkDeployment }
   ];
   
@@ -46,10 +46,9 @@ export async function statusCommand() {
   console.log(chalk.bold.blue('NEXT STEPS'));
   console.log();
   console.log(chalk.cyan('🚀 Quick commands:'));
-  console.log(chalk.gray('  • Local dev:'), chalk.white(`${chalk.bold('bit2 dev')} OR bun run dev`));
+  console.log(chalk.gray('  • Local dev:'), chalk.white(`${chalk.bold('bit2 dev')} OR bun dev`));
   console.log(chalk.gray('  • Full deployment:'), chalk.white(chalk.bold('bit2 deploy')));
   console.log(chalk.gray('  • Preview deployment:'), chalk.white(chalk.bold('bit2 deploy --dry-run')));
-  console.log(chalk.gray('  • Manual deployment:'), chalk.white(chalk.bold('bit2 deploy --local')));
   console.log();
 }
 
@@ -86,7 +85,7 @@ async function checkDependencies() {
   
   try {
     const packageJson = await fs.readJson('package.json');
-    const requiredDeps = ['astro', '@astrojs/cloudflare', '@libsql/client'];
+    const requiredDeps = ['astro', '@astrojs/vercel', '@libsql/client'];
     const missing = requiredDeps.filter(dep => !packageJson.dependencies?.[dep]);
     
     if (missing.length === 0) {
@@ -211,137 +210,75 @@ async function checkTursoDatabase() {
   }
 }
 
-async function checkCloudflarePages() {
+async function checkVercelDeployment() {
   try {
     const fs = await import('fs-extra');
     const packageJson = await fs.readJson('package.json');
     const projectName = packageJson.name;
     
-    // Check if wrangler is available and authenticated
+    // Check if Vercel CLI is available and authenticated
     try {
-      await execAsync('bunx wrangler --version');
-      await execAsync('bunx wrangler whoami');
+      await execAsync('vercel --version');
+      await execAsync('vercel whoami');
     } catch (error) {
       return { 
         status: 'warning', 
-        message: 'Cloudflare not configured',
-        details: ['Run: bunx wrangler login']
+        message: 'Vercel not configured',
+        details: ['Run: vercel login']
       };
     }
     
-    // Check if Pages project exists
+    // Check if Vercel project exists and get deployment info (prefer JSON)
     try {
-      // Try to detect account ID from multiple sources
-      let accountId = null;
-      
-      // First, try to get account ID from local config or environment
-      try {
-        const fs = await import('fs-extra');
-        
-        // Check for local .bit2 config file
-        if (await fs.pathExists('.bit2')) {
-          const config = await fs.readJson('.bit2');
-          if (config.cloudflareAccountId) {
-            accountId = config.cloudflareAccountId;
-          }
-        }
-      } catch (error) {
-        // Continue without local config
-      }
-      
-      // If no account ID found, try to detect from whoami
-      if (!accountId) {
+      const { stdout: jsonOut } = await execAsync('vercel ls --json | cat');
+      const list = JSON.parse(jsonOut);
+      const found = Array.isArray(list) ? list.find(p => p.name === projectName) : null;
+      if (found) {
+        let deploymentUrl = `https://${projectName}.vercel.app`;
         try {
-          const { stdout: whoamiOutput } = await execAsync('bunx wrangler whoami');
-          
-          // Look for account IDs in whoami output
-          const accountMatches = [...whoamiOutput.matchAll(/│\s+(.+?)'s Account\s+│\s+([a-f0-9-]+)\s+│/g)];
-          if (accountMatches.length === 1) {
-            // Single account - use it
-            accountId = accountMatches[0][2];
-          } else if (accountMatches.length > 1) {
-            // Multiple accounts - show warning and continue without account ID
-            console.log(chalk.yellow('  ⚠️  Multiple Cloudflare accounts detected'));
-            console.log(chalk.gray('  → Run `bit2 deploy` to configure which account to use'));
+          const { stdout: projJson } = await execAsync(`vercel ls ${projectName} --json | cat`);
+          const proj = JSON.parse(projJson);
+          if (proj?.deployments?.length) {
+            const latest = proj.deployments[0];
+            if (latest?.url) deploymentUrl = `https://${latest.url}`;
           }
-        } catch (error) {
-          // Continue without account ID
-        }
-      }
-      
-      const listCommand = accountId 
-        ? `CLOUDFLARE_ACCOUNT_ID=${accountId} bunx wrangler pages project list`
-        : `bunx wrangler pages project list`;
-      
-      const { stdout } = await execAsync(listCommand);
-      
-      // Parse the table output to find our project
-      const projectExists = stdout.includes(projectName);
-      
-      if (projectExists) {
-        // Get deployment info
-        try {
-          const deploymentCommand = accountId 
-            ? `CLOUDFLARE_ACCOUNT_ID=${accountId} bunx wrangler pages deployment list --project-name=${projectName}`
-            : `bunx wrangler pages deployment list --project-name=${projectName}`;
-          
-          const { stdout: deploymentData } = await execAsync(deploymentCommand);
-          
-          // Parse deployment table to get status
-          const lines = deploymentData.split('\n');
-          const deploymentLine = lines.find(line => line.includes('Production') || line.includes('├─'));
-          
-          let deploymentStatus = 'unknown';
-          let deploymentUrl = `https://${projectName}.pages.dev`;
-          
-          if (deploymentLine) {
-            // Extract URL from deployment line
-            const urlMatch = deploymentLine.match(/https:\/\/[^\s]+/);
-            if (urlMatch) {
-              deploymentUrl = urlMatch[0];
-            }
-            
-            // Determine status based on table content
-            if (deploymentLine.includes('success') || deploymentLine.includes('✅')) {
-              deploymentStatus = 'success';
-            } else if (deploymentLine.includes('failed') || deploymentLine.includes('❌')) {
-              deploymentStatus = 'failed';
-            } else {
-              deploymentStatus = 'deployed';
-            }
-          }
-          
-          return {
-            status: deploymentStatus === 'success' || deploymentStatus === 'deployed' ? 'success' : 'warning',
-            message: `Deployed (${deploymentStatus})`,
-            details: [
-              `Live URL: ${chalk.underline.blue(deploymentUrl)}`,
-              `View logs: bunx wrangler pages tail ${projectName}`,
-              `Dashboard: https://dash.cloudflare.com`
-            ]
-          };
-        } catch (error) {
-          return {
-            status: 'success',
-            message: 'Pages project exists',
-            details: [
-              `Live URL: https://${projectName}.pages.dev`,
-              `Dashboard: https://dash.cloudflare.com`
-            ]
-          };
-        }
-      } else {
+        } catch {}
         return {
-          status: 'warning',
-          message: 'No Pages project found',
-          details: [`Run: ${chalk.bold('bit2 deploy')} to create Pages project`]
+          status: 'success',
+          message: 'Deployed on Vercel',
+          details: [
+            `Live URL: ${chalk.underline.blue(deploymentUrl)}`,
+            `View deployments: vercel ls ${projectName}`,
+            `View logs: vercel logs ${projectName}`,
+            `Dashboard: https://vercel.com/dashboard`
+          ]
         };
       }
-    } catch (error) {
       return {
         status: 'warning',
-        message: 'Could not check Pages status',
-        details: [`Run: ${chalk.bold('bit2 deploy')} OR setup manually at https://dash.cloudflare.com`]
+        message: 'No Vercel deployment found',
+        details: [`Run: ${chalk.bold('bit2 deploy')} to deploy to Vercel`]
+      };
+    } catch (error) {
+      // Fallback to plain parsing if JSON not supported
+      try {
+        const { stdout } = await execAsync('vercel ls | cat');
+        const projectExists = stdout.includes(projectName);
+        if (projectExists) {
+          return {
+            status: 'success',
+            message: 'Vercel project exists',
+            details: [
+              `Live URL: https://${projectName}.vercel.app`,
+              `Dashboard: https://vercel.com/dashboard`
+            ]
+          };
+        }
+      } catch {}
+      return {
+        status: 'warning',
+        message: 'Could not check Vercel status',
+        details: [`Run: ${chalk.bold('bit2 deploy')} OR setup manually at https://vercel.com`]
       };
     }
   } catch (error) {
@@ -399,4 +336,3 @@ async function checkDeployment() {
     };
   }
 }
-

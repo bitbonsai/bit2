@@ -142,7 +142,7 @@ export async function testCommand() {
     
     try {
       // Start dev server in background
-      const devProcess = exec('bun run dev', { 
+      const devProcess = exec('bun dev', { 
         cwd: testProjectName,
         stdio: 'pipe'
       });

@@ -12,13 +12,12 @@ export async function deleteCommand(projectName, options = {}) {
   console.log(`${chalk.yellow('∴')} Delete bit2 project and infrastructure`);
   console.log();
   
-  let spinner = new TimedSpinner('Gathering project information');
-  
   try {
     const fs = await import('fs-extra');
     const path = await import('path');
     
     let projectPath, actualProjectName, isInsideProject = false;
+    let deploymentConfig = null;
     
     // Case 1: User provided project name (from parent directory)
     if (projectName) {
@@ -26,7 +25,6 @@ export async function deleteCommand(projectName, options = {}) {
       actualProjectName = projectName;
       
       if (!await fs.pathExists(projectPath)) {
-        spinner.fail('Project directory not found');
         console.log(chalk.red(`❌ Directory "${projectName}" not found.`));
         process.exit(1);
       }
@@ -34,15 +32,19 @@ export async function deleteCommand(projectName, options = {}) {
       // Check if it has package.json to confirm it's a bit2 project
       const packageJsonPath = path.join(projectPath, 'package.json');
       if (!await fs.pathExists(packageJsonPath)) {
-        spinner.fail('Not a bit2 project');
         console.log(chalk.red(`❌ "${projectName}" doesn't appear to be a bit2 project (no package.json).`));
         process.exit(1);
+      }
+      
+      // Check for deployment config
+      const configPath = path.join(projectPath, '.env.bit2');
+      if (await fs.pathExists(configPath)) {
+        deploymentConfig = await readDeploymentConfig(configPath);
       }
     } 
     // Case 2: Run from inside project directory
     else {
       if (!await fs.pathExists('./package.json')) {
-        spinner.fail('No package.json found');
         console.log(chalk.red('❌ This doesn\'t appear to be a project directory.'));
         console.log(chalk.gray('Usage: bit2 delete [project-name] (from parent dir) OR bit2 delete (from inside project)'));
         process.exit(1);
@@ -52,33 +54,61 @@ export async function deleteCommand(projectName, options = {}) {
       actualProjectName = packageJson.name;
       projectPath = process.cwd();
       isInsideProject = true;
+      
+      // Check for deployment config
+      if (await fs.pathExists('.env.bit2')) {
+        deploymentConfig = await readDeploymentConfig('.env.bit2');
+      }
     }
     
-    spinner.succeed('Project information gathered');
-    
-    // Show what will be deleted
+    // Show what will be deleted (skip resources that don't exist / aren't configured)
     console.log(chalk.bold.red('DANGER ZONE'));
     console.log();
     console.log(chalk.red('⚠️  This will permanently delete:'));
     
-    // Check what exists and show deletion plan
-    const deletionPlan = await gatherDeletionPlan(actualProjectName);
-    
-    if (deletionPlan.length === 0) {
-      console.log(chalk.yellow('Nothing to delete - no cloud resources found.'));
-      console.log(chalk.gray('Only local files would be removed.'));
-    } else {
-      deletionPlan.forEach(item => {
-        console.log(chalk.red(`  • ${item.type}: ${chalk.white(item.name)}`));
-        if (item.details) {
-          item.details.forEach(detail => {
-            console.log(chalk.gray(`    ${detail}`));
-          });
-        }
+    const deletionItems = [];
+
+    // Turso: only include if it actually exists
+    try {
+      await execAsync(`turso db show ${actualProjectName}`);
+      console.log(chalk.red(`  • Turso Database: ${chalk.white(actualProjectName)}`));
+      deletionItems.push({
+        type: 'Turso Database',
+        name: actualProjectName,
+        deleteAction: () => execAsync(`turso db destroy ${actualProjectName} --yes`)
       });
+    } catch {
+      // skip printing Turso if it doesn't exist or not authenticated
+    }
+
+    // GitHub and Vercel: only include if we have explicit config values
+    if (deploymentConfig) {
+      if (deploymentConfig.githubRepo) {
+        console.log(chalk.red(`  • GitHub Repository: ${chalk.white(deploymentConfig.githubRepo)}`));
+        deletionItems.push({
+          type: 'GitHub Repository', 
+          name: deploymentConfig.githubRepo,
+          deleteAction: () => execAsync(`gh repo delete ${deploymentConfig.githubRepo.split('/')[1]} --yes`)
+        });
+      }
+
+      if (deploymentConfig.vercelProject) {
+        console.log(chalk.red(`  • Vercel Project: ${chalk.white(deploymentConfig.vercelProject)}`));
+        if (deploymentConfig.deploymentUrl) {
+          console.log(chalk.gray(`    Live site: ${deploymentConfig.deploymentUrl}`));
+        }
+        deletionItems.push({
+          type: 'Vercel Project',
+          name: deploymentConfig.vercelProject,
+          deleteAction: () => execAsync(`vercel remove ${deploymentConfig.vercelProject} --yes`)
+        });
+      }
     }
     
     console.log(chalk.red(`  • Local project files: ${chalk.white(projectPath)}`));
+    console.log();
+    
+    console.log(chalk.yellow('⚠️  Resources that don\'t exist will be silently skipped.'));
     console.log();
     
     // Confirmation (skip if --force)
@@ -95,19 +125,47 @@ export async function deleteCommand(projectName, options = {}) {
     console.log();
     
     // Delete cloud resources
-    for (const item of deletionPlan) {
-      spinner = new TimedSpinner(`Deleting ${item.type}: ${item.name}`);
+    for (const item of deletionItems) {
+      const spinner = new TimedSpinner(`Deleting ${item.type}: ${item.name}`);
       try {
         await item.deleteAction();
         spinner.succeed(`${item.type} deleted`);
       } catch (error) {
-        spinner.warn(`Failed to delete ${item.type}: ${error.message}`);
-        console.log(chalk.gray(`  You may need to delete manually: ${item.manualUrl || 'N/A'}`));
+        spinner.warn(`${item.type} not found or already deleted`);
+        // Extra cleanup/help for GitHub
+        if (item.type === 'GitHub Repository') {
+          try {
+            // Try to capture remote URL before removal
+            let repoUrl = '';
+            try {
+              const { stdout: remoteUrl } = await execAsync('git remote get-url origin');
+              repoUrl = remoteUrl.trim();
+            } catch {}
+
+            // Remove local remote to avoid stale origin
+            try {
+              await execAsync('git remote remove origin');
+              console.log(chalk.gray('  → Removed local git remote "origin"'));
+            } catch {}
+
+            // Print GitHub settings URL if determinable
+            let settingsUrl = '';
+            if (deploymentConfig?.githubRepo) {
+              settingsUrl = `https://github.com/${deploymentConfig.githubRepo}/settings`;
+            } else if (repoUrl) {
+              const match = repoUrl.match(/github\.com[/:]([^\s]+?)(?:\.git)?$/);
+              if (match) settingsUrl = `https://github.com/${match[1]}/settings`;
+            }
+            if (settingsUrl) {
+              console.log(chalk.gray('  → Repo settings:'), chalk.underline.blue(settingsUrl));
+            }
+          } catch {}
+        }
       }
     }
     
     // Delete local project files
-    spinner = new TimedSpinner('Removing local project files');
+    const spinner = new TimedSpinner('Removing local project files');
     try {
       if (isInsideProject) {
         // Move to parent directory, then delete project folder using project name
@@ -144,90 +202,52 @@ export async function deleteCommand(projectName, options = {}) {
     console.log();
     
   } catch (error) {
-    if (spinner) {
-      spinner.fail('Deletion failed');
-    }
     console.error(chalk.red('❌ Deletion failed:'), error.message);
     process.exit(1);
   }
 }
 
-async function gatherDeletionPlan(projectName) {
-  const plan = [];
-  
-  // Check Turso database
+async function readDeploymentConfig(configPath) {
   try {
-    await execAsync('turso auth whoami');
-    await execAsync(`turso db show ${projectName}`);
+    const fs = await import('fs-extra');
+    const content = await fs.readFile(configPath, 'utf8');
     
-    plan.push({
-      type: 'Turso Database',
-      name: projectName,
-      details: ['All data will be permanently lost'],
-      deleteAction: () => execAsync(`turso db destroy ${projectName} --yes`),
-      manualUrl: 'https://app.turso.tech'
-    });
-  } catch (error) {
-    // Database doesn't exist or not authenticated
-  }
-  
-  // Check GitHub repository
-  try {
-    await execAsync('gh auth status');
-    await execAsync(`gh repo view ${projectName}`);
+    const config = {};
+    const lines = content.split('\n');
     
-    const { stdout: userOutput } = await execAsync('gh api user --jq .login');
-    const githubUser = userOutput.trim();
-    
-    plan.push({
-      type: 'GitHub Repository',
-      name: `${githubUser}/${projectName}`,
-      details: ['All code history will be permanently lost'],
-      deleteAction: async () => {
-        try {
-          await execAsync(`gh repo delete ${projectName} --yes`);
-        } catch (error) {
-          if (error.message.includes('delete_repo') || error.message.includes('403')) {
-            // Handle insufficient permissions
-            const enhancedError = new Error('Insufficient GitHub permissions for repository deletion');
-            enhancedError.isPermissionError = true;
-            enhancedError.recoverySteps = [
-              'Grant delete_repo permission: gh auth refresh -h github.com -s delete_repo',
-              `Then retry deletion: gh repo delete ${projectName} --yes`,
-              `Or delete manually: https://github.com/${githubUser}/${projectName}/settings`
-            ];
-            throw enhancedError;
-          }
-          throw error;
+    for (const line of lines) {
+      if (line.startsWith('BIT2_')) {
+        const [key, ...valueParts] = line.split('=');
+        const value = valueParts.join('='); // Handle values with = in them
+        const configKey = key.replace('BIT2_', '').toLowerCase();
+        
+        switch (configKey) {
+          case 'project_name':
+            config.projectName = value;
+            break;
+          case 'turso_database':
+            config.tursoDatabase = value;
+            break;
+          case 'github_repo':
+            config.githubRepo = value;
+            break;
+          case 'vercel_project':
+            config.vercelProject = value;
+            break;
+          case 'deployment_url':
+            config.deploymentUrl = value;
+            break;
+          case 'created_at':
+            config.createdAt = value;
+            break;
         }
-      },
-      manualUrl: `https://github.com/${githubUser}/${projectName}/settings`
-    });
-  } catch (error) {
-    // Repository doesn't exist or not authenticated
-  }
-  
-  // Check Cloudflare Pages
-  try {
-    await execAsync('bunx wrangler whoami');
-    const { stdout } = await execAsync('bunx wrangler pages project list --json');
-    const projects = JSON.parse(stdout);
-    const project = projects.find(p => p.name === projectName);
-    
-    if (project) {
-      plan.push({
-        type: 'Cloudflare Pages',
-        name: projectName,
-        details: [`Live site: https://${projectName}.pages.dev`],
-        deleteAction: () => execAsync(`bunx wrangler pages project delete ${projectName} --yes`),
-        manualUrl: 'https://dash.cloudflare.com'
-      });
+      }
     }
+    
+    return config;
   } catch (error) {
-    // Pages project doesn't exist or not authenticated
+    return null;
   }
-  
-  return plan;
 }
 
 async function confirmDeletion(projectName) {

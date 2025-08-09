@@ -16,7 +16,7 @@ const program = new Command();
 program
   .name('bit2')
   .description('Simple CLI tool to scaffold Astro webapps with libSQL/Turso database integration')
-  .version('2.0.3');
+  .version('0.9.0');
 
 program
   .command('new <project-name>')
@@ -35,9 +35,11 @@ program
 
 program
   .command('deploy')
-  .description('Automated deployment to Cloudflare Pages with Turso database')
+  .description('Automated deployment to Vercel with Turso database')
   .option('--dry-run', 'Preview deployment without executing')
   .option('--local', 'Use manual setup flow (original behavior)')
+  .option('--connect-git', 'Attempt to connect GitHub repo to Vercel project (requires VERCEL_TOKEN)')
+  .option('--save-token', 'Save VERCEL_TOKEN into .env.local for future CLI operations')
   .action((options) => deployCommand(options));
 
 program

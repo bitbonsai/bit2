@@ -10,7 +10,7 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "latest",
+    "@astrojs/vercel": "latest",
     "@libsql/client": "latest",
     "astro": "latest",
     "astro-mcp": "latest"

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Overview
 
-bit2 is a CLI tool for scaffolding modern web applications with Astro 5.x, libSQL/Turso database, and Cloudflare Pages deployment. It uses Bun as the primary runtime and package manager.
+bit2 is a CLI tool for scaffolding modern web applications with Astro 5.x, libSQL/Turso database, and Vercel deployment. It uses Bun as the primary runtime and package manager.
 
 ## Architecture
 
@@ -21,8 +21,8 @@ bit2 is a CLI tool for scaffolding modern web applications with Astro 5.x, libSQ
 
 ### Deployment Flow
 1. `bit2 deploy` creates Turso database and GitHub repository
-2. User manually configures Cloudflare Pages through dashboard (no wrangler.toml needed)
-3. Environment variables (TURSO_DATABASE_URL, TURSO_AUTH_TOKEN) are set in CF dashboard
+2. Automatically deploys to Vercel with Git integration
+3. Environment variables (TURSO_DATABASE_URL, TURSO_AUTH_TOKEN) are set automatically
 4. Auto-deploys on git push to main branch
 
 ## Development Commands
@@ -47,7 +47,7 @@ bit2 --help
 
 When updating the Astro template:
 - Use `"latest"` for all dependencies in `templates/astro-app/package.json` to ensure new projects get current versions
-- The template uses Astro 5.x with @astrojs/cloudflare adapter for SSR
+- The template uses Astro 5.x with @astrojs/vercel adapter for SSR
 - Database client configuration in `src/db/client.ts` automatically switches between local and production based on NODE_ENV
 
 ## Important Implementation Details
@@ -94,20 +94,21 @@ await db.close();`;
 The deploy command checks for:
 - Turso CLI installation and authentication (`turso auth whoami`)
 - GitHub CLI installation and authentication (`gh auth status`)
+- Vercel CLI installation and authentication (`vercel whoami`)
 - Project must have a package.json with a name field
 
-### Cloudflare Pages Configuration
-- No wrangler.toml is used - configuration is done through CF dashboard
-- Build command: `bun run build`
-- Output directory: `dist`
-- Framework preset: Astro
+### Vercel Deployment Configuration
+- Automatic Git integration with zero configuration
+- Build command: `bun run build` (detected automatically)
+- Output directory: `dist` (detected automatically)
+- Framework preset: Astro (detected automatically)
 
 ## Testing New Features
 
 Simplified workflow since auto-setup was implemented:
 
 1. Create a test project (auto-installs deps and sets up DB): `./src/cli.js new test-feature`
-2. Test development: `cd test-feature && bun run dev` or `../src/cli.js dev`
+2. Test development: `cd test-feature && bun dev` or `../src/cli.js dev`
 3. Test build: `bun run build`
 4. Clean up: `cd .. && rm -rf test-feature`
 

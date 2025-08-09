@@ -42,4 +42,4 @@ bun.lockb
 temp-*.mjs
 
 # bit2 CLI configuration
-.bit2
+.env.bit2

@@ -35,7 +35,9 @@
       "Bash(bunx wrangler pages project list:*)",
       "Bash(bunx wrangler:*)",
       "Bash(touch:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(mv:*)",
+      "Bash(node:*)"
     ],
     "deny": []
   }

@@ -1,6 +1,6 @@
 # PROJECT_NAME
 
-A modern web application built with [bit2](https://github.com/bitbons-ai/bit2) v2.0.3 - featuring Astro, libSQL/Turso, and Cloudflare Pages.
+A modern web application built with [bit2](https://github.com/bitbons-ai/bit2) v0.9.0 - featuring Astro, libSQL/Turso, and Vercel.
 
 ✨ **MCP-enabled** for AI assistants (Cursor, Claude Desktop, Windsurf, etc.)
 
@@ -8,8 +8,40 @@ A modern web application built with [bit2](https://github.com/bitbons-ai/bit2) v
 
 - **[Astro](https://astro.build/)** - Modern web framework with SSR
 - **[libSQL/Turso](https://turso.tech/)** - SQLite for the edge 
-- **[Cloudflare Pages](https://pages.cloudflare.com/)** - Fast, secure hosting
+- **[Vercel](https://vercel.com/)** - Fast, secure hosting
 - **[Bun](https://bun.sh/)** - Fast JavaScript runtime
+
+## ⚡ Quick Start
+
+1. Install the CLI
+
+   ```bash
+   bun install -g bit2-cli
+   ```
+
+2. Create a project
+
+   ```bash
+   bit2 new my-awesome-app
+   ```
+
+3. Enter the directory
+
+   ```bash
+   cd my-awesome-app
+   ```
+
+4. Start the dev server
+
+   ```bash
+   bit2 dev
+   ```
+
+5. Deploy to production
+
+   ```bash
+   bit2 deploy
+   ```
 
 ## 📁 Project Structure
 
@@ -42,12 +74,12 @@ All commands are run from the root of the project, from a terminal:
 | :----------------------| :----------------------------------------------- |
 | `bun install`          | Installs dependencies                            |
 | `bit2 dev`             | Starts local dev server at `localhost:4321`     |
-| `bun run dev`          | ↳ _Alternative: same as above_                   |
+| `bun dev`          | ↳ _Alternative: same as above_                   |
 | `bit2 build`           | Build your production site to `/dist/`          |
 | `bun run build`        | ↳ _Alternative: same as above_                   |
 | `bun run preview`      | Preview your build locally, before deploying    |
 | `bit2 migrate`         | Run database migrations                          |
-| `bit2 deploy`          | Deploy to Cloudflare Pages                       |
+| `bit2 deploy`          | Deploy to Vercel                                 |
 
 ## 🗄️ Database
 
@@ -64,11 +96,11 @@ All commands are run from the root of the project, from a terminal:
 
 ## 🚀 Deployment
 
-This project is configured for deployment on **Cloudflare Pages** with automatic deployments from your Git repository.
+This project is configured for deployment on **Vercel** with automatic deployments from your Git repository.
 
 ### Environment Variables
 
-Set these in your Cloudflare Pages dashboard:
+Set these in your Vercel project (or use `bit2 deploy`). For local development, no env vars are required because SQLite is used.
 
 ```
 TURSO_DATABASE_URL=your_database_url_here
@@ -119,7 +151,7 @@ No additional setup needed - it just works! ✨
 3. **Start development server**:
    ```bash
    bit2 dev
-   # or: bun run dev
+   # or: bun dev
    ```
 
 4. **Visit your app**: Open [http://localhost:4321](http://localhost:4321)
@@ -128,9 +160,9 @@ No additional setup needed - it just works! ✨
 
 - [Astro Documentation](https://docs.astro.build)
 - [Turso Documentation](https://docs.turso.tech)
-- [Cloudflare Pages Documentation](https://developers.cloudflare.com/pages)
+- [Vercel Documentation](https://vercel.com/docs)
 - [bit2 CLI Documentation](https://github.com/bitbons-ai/bit2)
 
 ---
 
-Built with ❤️ using [bit2](https://github.com/bitbons-ai/bit2) v2.0.3
+Built with ❤️ using [bit2](https://github.com/bitbons-ai/bit2) v0.9.0

@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 This is a modern web application built with the bit2 stack:
 - **Framework**: Astro 5.x with SSR capabilities
 - **Database**: libSQL (SQLite-compatible) with Turso cloud integration  
-- **Deployment**: Cloudflare Pages with automated CI/CD
+- **Deployment**: Vercel with automated Git integration
 - **Runtime**: Bun for package management and development
 - **Styling**: Native CSS with component-scoped styles
 
@@ -27,9 +27,9 @@ This is a modern web application built with the bit2 stack:
 - **Seeds**: Sample data in `src/db/seed.sql` for development
 
 ### Deployment & Infrastructure
-- **Local Dev**: `bun run dev` starts Astro dev server with SQLite
+- **Local Dev**: `bun dev` starts Astro dev server with SQLite
 - **Build**: `bun run build` creates static assets in `dist/`
-- **Deploy**: `bit2 deploy` handles full deployment pipeline
+- **Deploy**: `bit2 deploy` handles full deployment pipeline to Vercel
 - **Status**: `bit2 status` shows deployment and infrastructure status
 
 ## Development Workflow
@@ -56,18 +56,19 @@ This is a modern web application built with the bit2 stack:
 ## Important Implementation Details
 
 ### Database Client Pattern
-The database client in `src/db/client.ts` automatically detects the environment:
+The database client in `src/db/client.ts` automatically detects the environment and uses `process.env` on Vercel:
 ```typescript
-const db = createClient({
-  url: import.meta.env.TURSO_DATABASE_URL || 'file:./dev.db',
-  authToken: import.meta.env.TURSO_AUTH_TOKEN
-});
+if (import.meta.env.DEV) {
+  createClient({ url: 'file:./dev.db' });
+} else {
+  createClient({ url: process.env.TURSO_DATABASE_URL!, authToken: process.env.TURSO_AUTH_TOKEN });
+}
 ```
 
 ### SSR Configuration
-- Astro is configured for SSR with Cloudflare adapter
-- Pages can access runtime context via `Astro.locals.runtime`
-- Database queries work in both dev and production environments
+- Astro is configured for SSR with Vercel adapter
+- Environment variables are available via `process.env` in both dev and production
+- Database queries work seamlessly in both environments
 
 ### MCP Integration
 - This project includes `astro-mcp` for AI assistant integration
@@ -129,7 +130,7 @@ const data = await getExample(runtime);
 ## Deployment Commands
 
 - `bit2 dev` - Start development server
-- `bit2 deploy` - Full automated deployment (creates DB, GitHub repo, Cloudflare Pages)
+- `bit2 deploy` - Full automated deployment (creates DB, GitHub repo, Vercel)
 - `bit2 deploy --dry-run` - Preview deployment plan without executing
 - `bit2 deploy --local` - Manual deployment with dashboard setup instructions
 - `bit2 status` - Check deployment and infrastructure status
@@ -137,15 +138,15 @@ const data = await getExample(runtime);
 
 ## Environment Variables (Production)
 
-Set in Cloudflare Pages dashboard or via `bit2 deploy`:
+Set in Vercel dashboard or via `bit2 deploy`:
 - `TURSO_DATABASE_URL` - Turso database connection URL
 - `TURSO_AUTH_TOKEN` - Turso database authentication token
-- `NODE_ENV` - Set to 'production' for Cloudflare Pages
+- `NODE_ENV` - Set to 'production' for Vercel deployment
 
 ## File Structure Reference
 
 ```
-├── astro.config.mjs          # Astro configuration with Cloudflare adapter
+├── astro.config.mjs          # Astro configuration with Vercel adapter
 ├── package.json              # Dependencies and scripts
 ├── src/
 │   ├── components/
@@ -169,7 +170,7 @@ Set in Cloudflare Pages dashboard or via `bit2 deploy`:
 - **Database not found**: Delete `dev.db` and restart dev server
 - **Build fails**: Check for TypeScript errors and database queries
 - **Deployment issues**: Run `bit2 status` to check infrastructure
-- **Environment variables**: Verify Turso credentials in Cloudflare dashboard
+- **Environment variables**: Verify Turso credentials in Vercel dashboard
 
 ## Best Practices
 

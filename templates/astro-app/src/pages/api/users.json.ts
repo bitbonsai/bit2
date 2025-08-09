@@ -1,10 +1,9 @@
 import type { APIRoute } from 'astro';
 import { getUsers, createUser } from '../../lib/db';
 
-export const GET: APIRoute = async (context) => {
+export const GET: APIRoute = async () => {
   try {
-    const { runtime } = context.locals;
-    const users = await getUsers(runtime, context.request);
+    const users = await getUsers();
     return new Response(JSON.stringify(users), {
       status: 200,
       headers: {
@@ -23,7 +22,6 @@ export const GET: APIRoute = async (context) => {
 
 export const POST: APIRoute = async (context) => {
   try {
-    const { runtime } = context.locals;
     const data = await context.request.json();
     const { name, email } = data;
     
@@ -36,7 +34,7 @@ export const POST: APIRoute = async (context) => {
       });
     }
     
-    const userId = await createUser(name, email, runtime, context.request);
+    const userId = await createUser(name, email);
     
     return new Response(JSON.stringify({ id: userId, name, email }), {
       status: 201,
