@@ -4,7 +4,7 @@ import { getPosts, createPost } from '../../lib/db';
 export const GET: APIRoute = async (context) => {
   try {
     const { runtime } = context.locals;
-    const posts = await getPosts(runtime);
+    const posts = await getPosts(runtime, context.request);
     return new Response(JSON.stringify(posts), {
       status: 200,
       headers: {
@@ -36,7 +36,7 @@ export const POST: APIRoute = async (context) => {
       });
     }
     
-    const postId = await createPost(title, content, user_id, runtime);
+    const postId = await createPost(title, content, user_id, runtime, context.request);
     
     return new Response(JSON.stringify({ id: postId, title, content, user_id }), {
       status: 201,

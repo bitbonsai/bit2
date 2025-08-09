@@ -3,8 +3,8 @@ import Layout from '../components/Layout.astro';
 import { getPosts, getUsers } from '../lib/db';
 
 const { runtime } = Astro.locals;
-const posts = await getPosts(runtime);
-const users = await getUsers(runtime);
+const posts = await getPosts(runtime, Astro.request);
+const users = await getUsers(runtime, Astro.request);
 ---
 
 <Layout title="Welcome to bit2">
