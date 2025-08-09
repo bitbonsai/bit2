@@ -231,34 +231,103 @@ async function checkCloudflarePages() {
     
     // Check if Pages project exists
     try {
-      const { stdout } = await execAsync(`bunx wrangler pages project list --json`);
-      const projects = JSON.parse(stdout);
-      const project = projects.find(p => p.name === projectName);
+      // Try to detect account ID from multiple sources
+      let accountId = null;
       
-      if (project) {
+      // First, try to get account ID from local config or environment
+      try {
+        const fs = await import('fs-extra');
+        
+        // Check for local .bit2-config file
+        if (await fs.pathExists('.bit2-config.json')) {
+          const config = await fs.readJson('.bit2-config.json');
+          if (config.cloudflareAccountId) {
+            accountId = config.cloudflareAccountId;
+          }
+        }
+      } catch (error) {
+        // Continue without local config
+      }
+      
+      // If no account ID found, try to detect from whoami
+      if (!accountId) {
+        try {
+          const { stdout: whoamiOutput } = await execAsync('bunx wrangler whoami');
+          
+          // Look for account IDs in whoami output
+          const accountMatches = [...whoamiOutput.matchAll(/│\s+(.+?)'s Account\s+│\s+([a-f0-9-]+)\s+│/g)];
+          if (accountMatches.length === 1) {
+            // Single account - use it
+            accountId = accountMatches[0][2];
+          } else if (accountMatches.length > 1) {
+            // Multiple accounts - show warning and continue without account ID
+            console.log(chalk.yellow('  ⚠️  Multiple Cloudflare accounts detected'));
+            console.log(chalk.gray('  → Run `bit2 deploy` to configure which account to use'));
+          }
+        } catch (error) {
+          // Continue without account ID
+        }
+      }
+      
+      const listCommand = accountId 
+        ? `CLOUDFLARE_ACCOUNT_ID=${accountId} bunx wrangler pages project list`
+        : `bunx wrangler pages project list`;
+      
+      const { stdout } = await execAsync(listCommand);
+      
+      // Parse the table output to find our project
+      const projectExists = stdout.includes(projectName);
+      
+      if (projectExists) {
         // Get deployment info
         try {
-          const { stdout: deploymentData } = await execAsync(`bunx wrangler pages deployment list --project-name=${projectName} --json`);
-          const deployments = JSON.parse(deploymentData);
-          const latestDeployment = deployments[0];
+          const deploymentCommand = accountId 
+            ? `CLOUDFLARE_ACCOUNT_ID=${accountId} bunx wrangler pages deployment list --project-name=${projectName}`
+            : `bunx wrangler pages deployment list --project-name=${projectName}`;
           
-          const status = latestDeployment?.status || 'unknown';
-          const url = `https://${projectName}.pages.dev`;
+          const { stdout: deploymentData } = await execAsync(deploymentCommand);
+          
+          // Parse deployment table to get status
+          const lines = deploymentData.split('\n');
+          const deploymentLine = lines.find(line => line.includes('Production') || line.includes('├─'));
+          
+          let deploymentStatus = 'unknown';
+          let deploymentUrl = `https://${projectName}.pages.dev`;
+          
+          if (deploymentLine) {
+            // Extract URL from deployment line
+            const urlMatch = deploymentLine.match(/https:\/\/[^\s]+/);
+            if (urlMatch) {
+              deploymentUrl = urlMatch[0];
+            }
+            
+            // Determine status based on table content
+            if (deploymentLine.includes('success') || deploymentLine.includes('✅')) {
+              deploymentStatus = 'success';
+            } else if (deploymentLine.includes('failed') || deploymentLine.includes('❌')) {
+              deploymentStatus = 'failed';
+            } else {
+              deploymentStatus = 'deployed';
+            }
+          }
           
           return {
-            status: status === 'success' ? 'success' : 'warning',
-            message: `Deployed (${status})`,
+            status: deploymentStatus === 'success' || deploymentStatus === 'deployed' ? 'success' : 'warning',
+            message: `Deployed (${deploymentStatus})`,
             details: [
-              `Live URL: ${chalk.underline.blue(url)}`,
-              `Last deploy: ${latestDeployment?.created_on ? new Date(latestDeployment.created_on).toLocaleDateString() : 'Unknown'}`,
-              `View logs: bunx wrangler pages tail ${projectName}`
+              `Live URL: ${chalk.underline.blue(deploymentUrl)}`,
+              `View logs: bunx wrangler pages tail ${projectName}`,
+              `Dashboard: https://dash.cloudflare.com`
             ]
           };
         } catch (error) {
           return {
             status: 'success',
             message: 'Pages project exists',
-            details: [`Live URL: https://${projectName}.pages.dev`]
+            details: [
+              `Live URL: https://${projectName}.pages.dev`,
+              `Dashboard: https://dash.cloudflare.com`
+            ]
           };
         }
       } else {
@@ -330,3 +399,4 @@ async function checkDeployment() {
     };
   }
 }
+

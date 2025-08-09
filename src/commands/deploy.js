@@ -94,15 +94,22 @@ async function deployAutomated() {
     spinner.succeed('Local build successful');
     
     // Setup Cloudflare Pages
-    spinner = new TimedSpinner('Creating Cloudflare Pages project');
+    spinner = new TimedSpinner('Setting up Cloudflare Pages project');
     const pageInfo = await setupCloudflarePages(projectName, repoInfo, spinner);
-    if (spinner) spinner.succeed('Cloudflare Pages project created');
+    if (spinner) {
+      const message = pageInfo.exists ? 'Using existing Cloudflare Pages project' : 'Cloudflare Pages project created';
+      spinner.succeed(message);
+    }
     
     // Setup GitHub Actions secrets AND Cloudflare Pages environment variables
     spinner = new TimedSpinner('Setting up deployment secrets and environment variables');
-    const apiToken = await setupGitHubSecrets(projectName, dbInfo, pageInfo.accountId);
-    await setCloudflareEnvironmentVariables(projectName, dbInfo, pageInfo.accountId, apiToken);
-    spinner.succeed('GitHub Actions and Cloudflare Pages configured');
+    try {
+      const apiToken = await setupGitHubSecrets(projectName, dbInfo, pageInfo.accountId, spinner);
+      await setCloudflareEnvironmentVariables(projectName, dbInfo, pageInfo.accountId, apiToken);
+      spinner.succeed('GitHub Actions and Cloudflare Pages configured');
+    } catch (error) {
+      if (spinner) spinner.fail('Setup incomplete - manual configuration may be required');
+    }
     
     // Deploy to Cloudflare Pages (initial deployment)
     spinner = new TimedSpinner('Deploying to Cloudflare Pages');
@@ -113,6 +120,17 @@ async function deployAutomated() {
     spinner = new TimedSpinner('Verifying deployment');
     await verifyDeployment(deployInfo.url, dbInfo);
     spinner.succeed('Deployment verification complete');
+    
+    // Save account ID for future operations
+    try {
+      const fs = await import('fs-extra');
+      await fs.writeJson('.bit2-config.json', {
+        cloudflareAccountId: pageInfo.accountId,
+        projectName: projectName
+      }, { spaces: 2 });
+    } catch (error) {
+      // Continue without saving config
+    }
     
     // Success message
     displaySuccessMessage(projectName, deployInfo, dbInfo);
@@ -454,7 +472,8 @@ async function setupCloudflarePages(projectName, repoInfo, spinner = null) {
     }
     
     if (projectExists) {
-      console.log(chalk.yellow(`  ℹ Cloudflare Pages project already exists: ${projectName}`));
+      console.log(chalk.yellow(`  ℹ Using existing Cloudflare Pages project: ${projectName}`));
+      return { projectName, accountId: selectedAccountId, exists: true };
     } else {
       // Create Pages project (will use GitHub Actions for deployment)
       const createCommand = selectedAccountId 
@@ -463,7 +482,8 @@ async function setupCloudflarePages(projectName, repoInfo, spinner = null) {
       
       await execAsync(createCommand);
       
-      console.log(chalk.yellow(`  ℹ GitHub Actions workflow included for auto-deployment`));
+      console.log(chalk.yellow(`  ℹ Created new Pages project with GitHub Actions support`));
+      return { projectName, accountId: selectedAccountId, exists: false };
     }
     
     return { projectName, accountId: selectedAccountId };
@@ -478,14 +498,19 @@ async function setupCloudflarePages(projectName, repoInfo, spinner = null) {
   }
 }
 
-async function setupGitHubSecrets(projectName, dbInfo, accountId = null) {
+async function setupGitHubSecrets(projectName, dbInfo, accountId = null, spinner = null) {
   try {
-    // Cloudflare API tokens must be created manually - guide user through the process
-    console.log(chalk.yellow(`  ℹ GitHub Actions requires a Cloudflare API token...`));
+    // Stop the spinner before user interaction
+    if (spinner) {
+      spinner.stop();
+    }
+    
+    console.log();
+    console.log(chalk.yellow(`🔑 GitHub Actions requires a Cloudflare API token`));
+    console.log();
     
     const tokenUrl = 'https://dash.cloudflare.com/profile/api-tokens';
-    console.log();
-    console.log(chalk.white('  Create a Cloudflare API token:'));
+    console.log(chalk.white('Create a Cloudflare API token:'));
     console.log(chalk.blue(`  → Open: ${tokenUrl}`));
     console.log(chalk.gray('  1. Select "Create Token" → "Custom token"'));
     console.log(chalk.gray('  2. Set permissions: Account=Read, Zone=Read, Cloudflare Pages=Edit'));
@@ -507,7 +532,8 @@ async function setupGitHubSecrets(projectName, dbInfo, accountId = null) {
       });
     });
     
-    console.log(chalk.gray('  → Processing token...'));
+    // Resume feedback after user input
+    console.log(chalk.gray('  → Processing token and setting up secrets...'));
     
     if (!apiToken || apiToken.length < 10) {
       throw new Error('Invalid API token provided');
