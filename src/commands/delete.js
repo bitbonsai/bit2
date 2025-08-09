@@ -131,9 +131,10 @@ export async function deleteCommand(projectName, options = {}) {
         await item.deleteAction();
         spinner.succeed(`${item.type} deleted`);
       } catch (error) {
-        spinner.warn(`${item.type} not found or already deleted`);
-        // Extra cleanup/help for GitHub
+        // Special handling for GitHub repository deletion
         if (item.type === 'GitHub Repository') {
+          spinner.warn(`${item.type} deletion requires manual action`);
+          
           try {
             // Try to capture remote URL before removal
             let repoUrl = '';
@@ -148,7 +149,7 @@ export async function deleteCommand(projectName, options = {}) {
               console.log(chalk.gray('  → Removed local git remote "origin"'));
             } catch {}
 
-            // Print GitHub settings URL if determinable
+            // Construct GitHub settings URL
             let settingsUrl = '';
             if (deploymentConfig?.githubRepo) {
               settingsUrl = `https://github.com/${deploymentConfig.githubRepo}/settings`;
@@ -156,10 +157,22 @@ export async function deleteCommand(projectName, options = {}) {
               const match = repoUrl.match(/github\.com[/:]([^\s]+?)(?:\.git)?$/);
               if (match) settingsUrl = `https://github.com/${match[1]}/settings`;
             }
+            
+            // Provide clear instructions for manual deletion
+            console.log(chalk.yellow('  ⚠ GitHub CLI often lacks permissions to delete repos'));
+            console.log(chalk.cyan('  → Please delete manually:'));
             if (settingsUrl) {
-              console.log(chalk.gray('  → Repo settings:'), chalk.underline.blue(settingsUrl));
+              console.log(chalk.white('     1. Visit:'), chalk.underline.blue(settingsUrl));
+              console.log(chalk.white('     2. Scroll to "Danger Zone"'));
+              console.log(chalk.white('     3. Click "Delete this repository"'));
+            } else {
+              console.log(chalk.white('     1. Go to your GitHub repository settings'));
+              console.log(chalk.white('     2. Scroll to "Danger Zone"'));
+              console.log(chalk.white('     3. Click "Delete this repository"'));
             }
           } catch {}
+        } else {
+          spinner.warn(`${item.type} not found or already deleted`);
         }
       }
     }
