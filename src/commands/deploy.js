@@ -98,15 +98,15 @@ async function deployAutomated() {
     const pageInfo = await setupCloudflarePages(projectName, repoInfo, spinner);
     if (spinner) spinner.succeed('Cloudflare Pages project created');
     
-    // Set environment variables
-    spinner = new TimedSpinner('Setting environment variables');
-    await setEnvironmentVariables(projectName, dbInfo, pageInfo.accountId);
-    spinner.succeed('Environment variables configured');
+    // Setup GitHub Actions secrets
+    spinner = new TimedSpinner('Setting up GitHub Actions secrets');
+    await setupGitHubSecrets(projectName, dbInfo, pageInfo.accountId);
+    spinner.succeed('GitHub Actions secrets configured');
     
-    // Deploy to Cloudflare Pages
+    // Deploy to Cloudflare Pages (initial deployment)
     spinner = new TimedSpinner('Deploying to Cloudflare Pages');
     const deployInfo = await deployToCloudflare(projectName);
-    spinner.succeed('Deployment complete');
+    spinner.succeed('Initial deployment complete');
     
     // Verify deployment
     spinner = new TimedSpinner('Verifying deployment');
@@ -455,13 +455,14 @@ async function setupCloudflarePages(projectName, repoInfo, spinner = null) {
     if (projectExists) {
       console.log(chalk.yellow(`  ℹ Cloudflare Pages project already exists: ${projectName}`));
     } else {
-      // Create Pages project with Git integration
-      const repoUrl = `https://github.com/${repoInfo.githubUser}/${repoInfo.repoName}`;
+      // Create Pages project (will use GitHub Actions for deployment)
       const createCommand = selectedAccountId 
-        ? `CLOUDFLARE_ACCOUNT_ID=${selectedAccountId} bunx wrangler pages project create ${projectName} --production-branch=main --repo=${repoUrl} --compatibility-date=$(date +%Y-%m-%d)`
-        : `bunx wrangler pages project create ${projectName} --production-branch=main --repo=${repoUrl} --compatibility-date=$(date +%Y-%m-%d)`;
+        ? `CLOUDFLARE_ACCOUNT_ID=${selectedAccountId} bunx wrangler pages project create ${projectName} --production-branch=main --compatibility-date=$(date +%Y-%m-%d)`
+        : `bunx wrangler pages project create ${projectName} --production-branch=main --compatibility-date=$(date +%Y-%m-%d)`;
       
       await execAsync(createCommand);
+      
+      console.log(chalk.yellow(`  ℹ GitHub Actions workflow included for auto-deployment`));
     }
     
     return { projectName, accountId: selectedAccountId };
@@ -476,25 +477,42 @@ async function setupCloudflarePages(projectName, repoInfo, spinner = null) {
   }
 }
 
-async function setEnvironmentVariables(projectName, dbInfo, accountId = null) {
+async function setupGitHubSecrets(projectName, dbInfo, accountId = null) {
   try {
-    // Set environment variables in parallel
-    const secretPromises = [
+    // Get Cloudflare API token for GitHub Actions
+    let apiToken;
+    try {
+      const { stdout } = await execAsync('bunx wrangler auth token');
+      apiToken = stdout.trim();
+    } catch (error) {
+      // If token command doesn't work, we'll need user to create one manually
+      throw new Error('Unable to get Cloudflare API token automatically. You will need to create one manually.');
+    }
+    
+    // Set up GitHub secrets
+    const secrets = [
+      { key: 'CLOUDFLARE_API_TOKEN', value: apiToken },
       { key: 'TURSO_DATABASE_URL', value: dbInfo.databaseUrl },
       { key: 'TURSO_AUTH_TOKEN', value: dbInfo.authToken }
-    ].map(secret => {
-      const command = accountId ?
-        `CLOUDFLARE_ACCOUNT_ID=${accountId} echo "${secret.value}" | bunx wrangler pages secret put ${secret.key} --project-name=${projectName}` :
-        `echo "${secret.value}" | bunx wrangler pages secret put ${secret.key} --project-name=${projectName}`;
-      
+    ];
+    
+    const secretPromises = secrets.map(secret => {
+      const command = `echo "${secret.value}" | gh secret set ${secret.key}`;
       return execAsync(command);
     });
     
     await Promise.all(secretPromises);
+    
+    console.log(chalk.yellow(`  ℹ GitHub Actions secrets configured for automatic deployment`));
   } catch (error) {
-    const err = new Error('Failed to set environment variables');
+    console.log(chalk.yellow(`  ⚠️  Could not set up GitHub secrets automatically`));
+    console.log(chalk.gray('    Manual setup required in GitHub repository settings'));
+    
+    const err = new Error('Failed to configure GitHub Actions secrets');
     err.recoverySteps = [
-      'Set variables manually in Cloudflare dashboard',
+      'Go to your GitHub repository → Settings → Secrets and variables → Actions',
+      'Add these secrets:',
+      'CLOUDFLARE_API_TOKEN: (Create at https://dash.cloudflare.com/profile/api-tokens)',
       'TURSO_DATABASE_URL: ' + dbInfo.databaseUrl,
       'TURSO_AUTH_TOKEN: ' + dbInfo.authToken
     ];
@@ -552,14 +570,25 @@ function displaySuccessMessage(projectName, deployInfo, dbInfo) {
   console.log(chalk.cyan('📦 Project:'), chalk.white(projectName));
   console.log(chalk.cyan('🌐 Live URL:'), chalk.underline.blue(deployInfo.url));
   console.log(chalk.cyan('📊 Dashboard:'), chalk.underline.blue(`https://dash.cloudflare.com`));
+  console.log(chalk.cyan('🔄 GitHub Actions:'), chalk.underline.blue(`https://github.com/${projectName}/actions`));
+  console.log();
+  
+  console.log(chalk.bold.green('✅ GITHUB ACTIONS DEPLOYMENT CONFIGURED'));
+  console.log();
+  console.log(chalk.yellow('🚀 Auto-deployment is now active!'));
+  console.log(chalk.gray('  • Every push to main/master triggers automatic deployment'));
+  console.log(chalk.gray('  • Pull requests get preview deployments'));
+  console.log(chalk.gray('  • Build logs are available in GitHub Actions tab'));
   console.log();
   
   console.log(chalk.bold.blue('NEXT STEPS'));
   console.log();
-  console.log(chalk.yellow('✨ Your app is live!'));
+  console.log(chalk.yellow('✨ Your app is live and ready for development!'));
   console.log(chalk.gray('  • Test your app:'), chalk.white('Visit the URL above'));
-  console.log(chalk.gray('  • View logs:'), chalk.white(`bunx wrangler pages tail ${projectName}`));
-  console.log(chalk.gray('  • Redeploy:'), chalk.white('git push (auto-deploys on main branch)'));
+  console.log(chalk.gray('  • Auto-deploy:'), chalk.white('git push origin main'));
+  console.log(chalk.gray('  • View build logs:'), chalk.white('Check GitHub Actions tab'));
+  console.log(chalk.gray('  • Manual deploy:'), chalk.white(`bunx wrangler pages deploy dist --project-name=${projectName}`));
+  console.log(chalk.gray('  • View runtime logs:'), chalk.white(`bunx wrangler pages tail ${projectName}`));
   console.log(chalk.gray('  • Local dev:'), chalk.white('bun run dev'));
   console.log(chalk.gray('  • Check status:'), chalk.white('bit2 status'));
   console.log();
