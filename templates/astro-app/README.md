@@ -1,6 +1,6 @@
 # PROJECT_NAME
 
-A modern web application built with [bit2](https://github.com/bitbons-ai/bit2) v2.0.0 - featuring Astro, libSQL/Turso, and Cloudflare Pages.
+A modern web application built with [bit2](https://github.com/bitbons-ai/bit2) v2.0.3 - featuring Astro, libSQL/Turso, and Cloudflare Pages.
 
 ✨ **MCP-enabled** for AI assistants (Cursor, Claude Desktop, Windsurf, etc.)
 
@@ -133,4 +133,4 @@ No additional setup needed - it just works! ✨
 
 ---
 
-Built with ❤️ using [bit2](https://github.com/bitbons-ai/bit2) v2.0.0
+Built with ❤️ using [bit2](https://github.com/bitbons-ai/bit2) v2.0.3

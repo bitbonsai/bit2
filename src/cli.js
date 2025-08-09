@@ -16,7 +16,7 @@ const program = new Command();
 program
   .name('bit2')
   .description('Simple CLI tool to scaffold Astro webapps with libSQL/Turso database integration')
-  .version('2.0.0');
+  .version('2.0.3');
 
 program
   .command('new <project-name>')
