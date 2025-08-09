@@ -479,14 +479,50 @@ async function setupCloudflarePages(projectName, repoInfo, spinner = null) {
 
 async function setupGitHubSecrets(projectName, dbInfo, accountId = null) {
   try {
-    // Get Cloudflare API token for GitHub Actions
-    let apiToken;
+    // Cloudflare API tokens must be created manually - guide user through the process
+    console.log(chalk.yellow(`  ℹ Setting up GitHub Actions secrets...`));
+    console.log(chalk.gray(`  → Creating Cloudflare API token (required for deployment)`));
+    
+    // Open the API token creation page
+    const tokenUrl = 'https://dash.cloudflare.com/profile/api-tokens';
+    console.log(chalk.blue(`  → Opening: ${tokenUrl}`));
+    
     try {
-      const { stdout } = await execAsync('bunx wrangler auth token');
-      apiToken = stdout.trim();
+      await execAsync(`open "${tokenUrl}"`).catch(() => {
+        // If 'open' command fails (non-macOS), try other commands
+        return execAsync(`xdg-open "${tokenUrl}"`).catch(() => {
+          return execAsync(`start "${tokenUrl}"`);
+        });
+      });
     } catch (error) {
-      // If token command doesn't work, we'll need user to create one manually
-      throw new Error('Unable to get Cloudflare API token automatically. You will need to create one manually.');
+      console.log(chalk.gray(`  → Please manually open: ${tokenUrl}`));
+    }
+    
+    console.log();
+    console.log(chalk.white('  Please create a Cloudflare API token:'));
+    console.log(chalk.gray('  1. Select "Create Token"'));
+    console.log(chalk.gray('  2. Use "Edit Cloudflare Workers" template'));
+    console.log(chalk.gray('  3. Add "Cloudflare Pages:Edit" permission'));
+    console.log(chalk.gray('  4. Click "Continue to summary" → "Create Token"'));
+    console.log(chalk.gray('  5. Copy the token and paste it below'));
+    console.log();
+    
+    // Get API token from user input
+    const readline = await import('readline');
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+    
+    const apiToken = await new Promise((resolve) => {
+      rl.question(chalk.white('Paste your Cloudflare API token: '), (answer) => {
+        rl.close();
+        resolve(answer.trim());
+      });
+    });
+    
+    if (!apiToken || apiToken.length < 10) {
+      throw new Error('Invalid API token provided');
     }
     
     // Set up GitHub secrets
@@ -503,20 +539,19 @@ async function setupGitHubSecrets(projectName, dbInfo, accountId = null) {
     
     await Promise.all(secretPromises);
     
-    console.log(chalk.yellow(`  ℹ GitHub Actions secrets configured for automatic deployment`));
+    console.log(chalk.green(`  ✓ GitHub Actions secrets configured successfully`));
   } catch (error) {
-    console.log(chalk.yellow(`  ⚠️  Could not set up GitHub secrets automatically`));
-    console.log(chalk.gray('    Manual setup required in GitHub repository settings'));
+    console.log(chalk.yellow(`  ⚠️  Could not set up GitHub secrets: ${error.message}`));
+    console.log();
+    console.log(chalk.bold.yellow('Manual GitHub Secrets Setup Required:'));
+    console.log(chalk.gray('1. Go to your GitHub repository → Settings → Secrets and variables → Actions'));
+    console.log(chalk.gray('2. Add these secrets:'));
+    console.log(chalk.white('   CLOUDFLARE_API_TOKEN:'), chalk.gray('Create at https://dash.cloudflare.com/profile/api-tokens'));
+    console.log(chalk.white('   TURSO_DATABASE_URL:'), chalk.gray(dbInfo.databaseUrl));
+    console.log(chalk.white('   TURSO_AUTH_TOKEN:'), chalk.gray(dbInfo.authToken));
+    console.log();
     
-    const err = new Error('Failed to configure GitHub Actions secrets');
-    err.recoverySteps = [
-      'Go to your GitHub repository → Settings → Secrets and variables → Actions',
-      'Add these secrets:',
-      'CLOUDFLARE_API_TOKEN: (Create at https://dash.cloudflare.com/profile/api-tokens)',
-      'TURSO_DATABASE_URL: ' + dbInfo.databaseUrl,
-      'TURSO_AUTH_TOKEN: ' + dbInfo.authToken
-    ];
-    throw err;
+    // Don't throw error - let deployment continue with manual setup instructions
   }
 }
 
