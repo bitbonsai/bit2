@@ -98,10 +98,11 @@ async function deployAutomated() {
     const pageInfo = await setupCloudflarePages(projectName, repoInfo, spinner);
     if (spinner) spinner.succeed('Cloudflare Pages project created');
     
-    // Setup GitHub Actions secrets
-    spinner = new TimedSpinner('Setting up GitHub Actions secrets');
-    await setupGitHubSecrets(projectName, dbInfo, pageInfo.accountId);
-    spinner.succeed('GitHub Actions secrets configured');
+    // Setup GitHub Actions secrets AND Cloudflare Pages environment variables
+    spinner = new TimedSpinner('Setting up deployment secrets and environment variables');
+    const apiToken = await setupGitHubSecrets(projectName, dbInfo, pageInfo.accountId);
+    await setCloudflareEnvironmentVariables(projectName, dbInfo, pageInfo.accountId, apiToken);
+    spinner.succeed('GitHub Actions and Cloudflare Pages configured');
     
     // Deploy to Cloudflare Pages (initial deployment)
     spinner = new TimedSpinner('Deploying to Cloudflare Pages');
@@ -480,31 +481,16 @@ async function setupCloudflarePages(projectName, repoInfo, spinner = null) {
 async function setupGitHubSecrets(projectName, dbInfo, accountId = null) {
   try {
     // Cloudflare API tokens must be created manually - guide user through the process
-    console.log(chalk.yellow(`  ℹ Setting up GitHub Actions secrets...`));
-    console.log(chalk.gray(`  → Creating Cloudflare API token (required for deployment)`));
+    console.log(chalk.yellow(`  ℹ GitHub Actions requires a Cloudflare API token...`));
     
-    // Open the API token creation page
     const tokenUrl = 'https://dash.cloudflare.com/profile/api-tokens';
-    console.log(chalk.blue(`  → Opening: ${tokenUrl}`));
-    
-    try {
-      await execAsync(`open "${tokenUrl}"`).catch(() => {
-        // If 'open' command fails (non-macOS), try other commands
-        return execAsync(`xdg-open "${tokenUrl}"`).catch(() => {
-          return execAsync(`start "${tokenUrl}"`);
-        });
-      });
-    } catch (error) {
-      console.log(chalk.gray(`  → Please manually open: ${tokenUrl}`));
-    }
-    
     console.log();
-    console.log(chalk.white('  Please create a Cloudflare API token:'));
-    console.log(chalk.gray('  1. Select "Create Token"'));
-    console.log(chalk.gray('  2. Use "Edit Cloudflare Workers" template'));
-    console.log(chalk.gray('  3. Add "Cloudflare Pages:Edit" permission'));
-    console.log(chalk.gray('  4. Click "Continue to summary" → "Create Token"'));
-    console.log(chalk.gray('  5. Copy the token and paste it below'));
+    console.log(chalk.white('  Create a Cloudflare API token:'));
+    console.log(chalk.blue(`  → Open: ${tokenUrl}`));
+    console.log(chalk.gray('  1. Select "Create Token" → "Custom token"'));
+    console.log(chalk.gray('  2. Set permissions: Account=Read, Zone=Read, Cloudflare Pages=Edit'));
+    console.log(chalk.gray('  3. Click "Continue to summary" → "Create Token"'));
+    console.log(chalk.gray('  4. Copy the token and paste below'));
     console.log();
     
     // Get API token from user input
@@ -520,6 +506,8 @@ async function setupGitHubSecrets(projectName, dbInfo, accountId = null) {
         resolve(answer.trim());
       });
     });
+    
+    console.log(chalk.gray('  → Processing token...'));
     
     if (!apiToken || apiToken.length < 10) {
       throw new Error('Invalid API token provided');
@@ -538,20 +526,36 @@ async function setupGitHubSecrets(projectName, dbInfo, accountId = null) {
     });
     
     await Promise.all(secretPromises);
+    console.log(chalk.green(`  ✓ GitHub Actions secrets configured`));
     
-    console.log(chalk.green(`  ✓ GitHub Actions secrets configured successfully`));
+    return apiToken; // Return token for use in CF Pages setup
   } catch (error) {
-    console.log(chalk.yellow(`  ⚠️  Could not set up GitHub secrets: ${error.message}`));
-    console.log();
-    console.log(chalk.bold.yellow('Manual GitHub Secrets Setup Required:'));
-    console.log(chalk.gray('1. Go to your GitHub repository → Settings → Secrets and variables → Actions'));
-    console.log(chalk.gray('2. Add these secrets:'));
-    console.log(chalk.white('   CLOUDFLARE_API_TOKEN:'), chalk.gray('Create at https://dash.cloudflare.com/profile/api-tokens'));
-    console.log(chalk.white('   TURSO_DATABASE_URL:'), chalk.gray(dbInfo.databaseUrl));
-    console.log(chalk.white('   TURSO_AUTH_TOKEN:'), chalk.gray(dbInfo.authToken));
-    console.log();
+    console.log(chalk.yellow(`  ⚠️  GitHub secrets setup failed: ${error.message}`));
+    throw error; // Re-throw to handle in caller
+  }
+}
+
+async function setCloudflareEnvironmentVariables(projectName, dbInfo, accountId = null, apiToken = null) {
+  try {
+    // Set environment variables in Cloudflare Pages (for runtime access)
+    const envVars = [
+      { key: 'TURSO_DATABASE_URL', value: dbInfo.databaseUrl },
+      { key: 'TURSO_AUTH_TOKEN', value: dbInfo.authToken }
+    ];
     
-    // Don't throw error - let deployment continue with manual setup instructions
+    const envPromises = envVars.map(envVar => {
+      const command = accountId ?
+        `CLOUDFLARE_ACCOUNT_ID=${accountId} echo "${envVar.value}" | bunx wrangler pages secret put ${envVar.key} --project-name=${projectName}` :
+        `echo "${envVar.value}" | bunx wrangler pages secret put ${envVar.key} --project-name=${projectName}`;
+      
+      return execAsync(command);
+    });
+    
+    await Promise.all(envPromises);
+    console.log(chalk.green(`  ✓ Cloudflare Pages environment variables set`));
+  } catch (error) {
+    console.log(chalk.yellow(`  ⚠️  Could not set CF Pages environment variables: ${error.message}`));
+    console.log(chalk.gray('    You can set them manually in the Cloudflare dashboard'));
   }
 }
 
