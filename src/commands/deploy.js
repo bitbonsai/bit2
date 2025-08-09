@@ -456,9 +456,10 @@ async function setupCloudflarePages(projectName, repoInfo, spinner = null) {
       console.log(chalk.yellow(`  ℹ Cloudflare Pages project already exists: ${projectName}`));
     } else {
       // Create Pages project with Git integration
+      const repoUrl = `https://github.com/${repoInfo.githubUser}/${repoInfo.repoName}`;
       const createCommand = selectedAccountId 
-        ? `CLOUDFLARE_ACCOUNT_ID=${selectedAccountId} bunx wrangler pages project create ${projectName} --production-branch=main --compatibility-date=$(date +%Y-%m-%d)`
-        : `bunx wrangler pages project create ${projectName} --production-branch=main --compatibility-date=$(date +%Y-%m-%d)`;
+        ? `CLOUDFLARE_ACCOUNT_ID=${selectedAccountId} bunx wrangler pages project create ${projectName} --production-branch=main --repo=${repoUrl} --compatibility-date=$(date +%Y-%m-%d)`
+        : `bunx wrangler pages project create ${projectName} --production-branch=main --repo=${repoUrl} --compatibility-date=$(date +%Y-%m-%d)`;
       
       await execAsync(createCommand);
     }
