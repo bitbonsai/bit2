@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function newCommand(projectName) {
-  console.log(chalk.blue(`🚀 Creating new Astro + libSQL project: ${chalk.bold(projectName)}`));
+  console.log(`${chalk.yellow('∴')} Creating new Astro + libSQL project: ${chalk.bold(projectName)}`);
   
   // Check for bun
   try {
@@ -49,11 +49,34 @@ export async function newCommand(projectName) {
     packageJson.name = projectName;
     await fs.writeJson(packageJsonPath, packageJson, { spaces: 2 });
     
-    // Update README.md with project name
+    // Update README.md with project name and bit2 version
     const readmePath = path.join(projectPath, 'README.md');
     let readmeContent = await fs.readFile(readmePath, 'utf8');
+    
+    // Get bit2 CLI version from package.json
+    const bit2PackageJsonPath = path.resolve(__dirname, '../../package.json');
+    const bit2PackageJson = await fs.readJson(bit2PackageJsonPath);
+    const bit2Version = bit2PackageJson.version;
+    
     readmeContent = readmeContent.replace(/PROJECT_NAME/g, projectName);
+    readmeContent = readmeContent.replace(/v2\.0\.0/g, `v${bit2Version}`);
     await fs.writeFile(readmePath, readmeContent);
+    
+    // Update version in Astro pages
+    const indexPath = path.join(projectPath, 'src/pages/index.astro');
+    const aboutPath = path.join(projectPath, 'src/pages/about.astro');
+    
+    if (await fs.pathExists(indexPath)) {
+      let indexContent = await fs.readFile(indexPath, 'utf8');
+      indexContent = indexContent.replace(/v2\.0\.0/g, `v${bit2Version}`);
+      await fs.writeFile(indexPath, indexContent);
+    }
+    
+    if (await fs.pathExists(aboutPath)) {
+      let aboutContent = await fs.readFile(aboutPath, 'utf8');
+      aboutContent = aboutContent.replace(/v2\.0\.0/g, `v${bit2Version}`);
+      await fs.writeFile(aboutPath, aboutContent);
+    }
     
     spinner.succeed();
     
@@ -131,7 +154,7 @@ console.log('Database initialized');
     
     console.log(chalk.green('✅ Project created and initialized successfully!'));
     console.log();
-    console.log(chalk.bgGreen.black(' SUCCESS '), chalk.green('Your project is ready!'));
+    console.log(chalk.bold.green('SUCCESS'), chalk.green('Your project is ready!'));
     console.log();
     console.log(chalk.yellow('✨ MCP-enabled'), chalk.gray('for AI assistants (Cursor, Claude Desktop, Windsurf, etc.)'));
     console.log();

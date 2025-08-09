@@ -8,7 +8,7 @@ import ora from 'ora';
 const execAsync = promisify(exec);
 
 export async function testCommand() {
-  console.log(chalk.blue('🧪 Running bit2 integration tests...\n'));
+  console.log(`${chalk.yellow('∴')} Running bit2 integration tests...\n`);
   
   // Generate unique test project name
   const timestamp = Date.now();

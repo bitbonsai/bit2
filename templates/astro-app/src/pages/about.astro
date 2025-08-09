@@ -14,6 +14,10 @@ import Layout from '../components/Layout.astro';
       <p class="hero-subtitle">
         The modern web stack for building fast, content-focused applications.
       </p>
+      <div class="version-badge">
+        <span class="version-label">Built with bit2</span>
+        <span class="version-value">v2.0.0</span>
+      </div>
     </header>
 
     <section class="content-section">
@@ -163,11 +167,31 @@ bit2 dev</code></pre>
   .hero-subtitle {
     font-size: 1.375rem;
     color: #9ca3af;
-    margin: 0;
+    margin: 0 0 2rem 0;
     max-width: 640px;
     margin-left: auto;
     margin-right: auto;
     line-height: 1.5;
+  }
+  
+  .version-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 8px;
+    font-size: 0.875rem;
+  }
+  
+  .version-label {
+    color: #9ca3af;
+  }
+  
+  .version-value {
+    color: #fbbf24;
+    font-weight: 600;
   }
   
   /* Content Sections */

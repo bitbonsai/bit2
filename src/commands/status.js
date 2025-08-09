@@ -1,12 +1,12 @@
 import chalk from 'chalk';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import ora from 'ora';
+import { TimedSpinner } from '../utils/spinner.js';
 
 const execAsync = promisify(exec);
 
 export async function statusCommand() {
-  console.log(chalk.blue('📊 bit2 Project Status'));
+  console.log(`${chalk.yellow('∴')} bit2 Project Status`);
   console.log();
   
   const checks = [
@@ -15,11 +15,12 @@ export async function statusCommand() {
     { name: 'Database', check: checkDatabase },
     { name: 'Git Repository', check: checkGitRepo },
     { name: 'Turso Database', check: checkTursoDatabase },
-    { name: 'Deployment', check: checkDeployment }
+    { name: 'Cloudflare Pages', check: checkCloudflarePages },
+    { name: 'Deployment Status', check: checkDeployment }
   ];
   
   for (const { name, check } of checks) {
-    const spinner = ora(`Checking ${name}...`).start();
+    const spinner = new TimedSpinner(`Checking ${name}`);
     try {
       const result = await check();
       if (result.status === 'success') {
@@ -40,6 +41,16 @@ export async function statusCommand() {
     }
     console.log();
   }
+  
+  // Show final recommendations
+  console.log(chalk.bold.blue('NEXT STEPS'));
+  console.log();
+  console.log(chalk.cyan('🚀 Quick commands:'));
+  console.log(chalk.gray('  • Local dev:'), chalk.white(`${chalk.bold('bit2 dev')} OR bun run dev`));
+  console.log(chalk.gray('  • Full deployment:'), chalk.white(chalk.bold('bit2 deploy')));
+  console.log(chalk.gray('  • Preview deployment:'), chalk.white(chalk.bold('bit2 deploy --dry-run')));
+  console.log(chalk.gray('  • Manual deployment:'), chalk.white(chalk.bold('bit2 deploy --local')));
+  console.log();
 }
 
 async function checkProjectStructure() {
@@ -114,7 +125,7 @@ async function checkDatabase() {
       return { 
         status: 'warning', 
         message: 'Database not initialized',
-        details: ['Run: bit2 migrate']
+        details: [`Run: ${chalk.bold('bit2 migrate')}`]
       };
     }
   } catch (error) {
@@ -144,14 +155,14 @@ async function checkGitRepo() {
       return { 
         status: 'warning', 
         message: 'No remote repository',
-        details: ['Run: bit2 deploy to create GitHub repo']
+        details: [`Run: ${chalk.bold('bit2 deploy')} to create GitHub repo`]
       };
     }
   } catch (error) {
     return { 
       status: 'warning', 
       message: 'Not a git repository',
-      details: ['Run: git init']
+      details: [`Run: ${chalk.bold('bit2 deploy')} OR git init`]
     };
   }
 }
@@ -175,30 +186,97 @@ async function checkTursoDatabase() {
       };
     }
     
-    // Check if Turso database exists
+    // Check if Turso database exists (READ-ONLY check)
     try {
+      await execAsync(`turso db show ${projectName}`);
       const { stdout: dbUrl } = await execAsync(`turso db show --url ${projectName}`);
-      const { stdout: authToken } = await execAsync(`turso db tokens create ${projectName}`);
       
       return { 
         status: 'success', 
-        message: 'Turso database configured',
+        message: 'Turso database exists',
         details: [
-          chalk.yellow('TURSO_DATABASE_URL') + '=' + chalk.cyan(dbUrl.trim()),
-          chalk.yellow('TURSO_AUTH_TOKEN') + '=' + chalk.cyan(authToken.trim()),
-          '',
-          chalk.gray('Copy these to your Cloudflare Pages environment variables')
+          chalk.yellow('Database URL: ') + chalk.cyan(dbUrl.trim()),
+          chalk.gray(`Use ${chalk.bold('`bit2 deploy`')} to get auth token for production`)
         ]
       };
     } catch (dbError) {
       return { 
         status: 'warning', 
         message: 'Turso database not found',
-        details: [`Run: turso db create ${projectName}`]
+        details: [`Run: ${chalk.bold('bit2 deploy')} OR turso db create ${projectName}`]
       };
     }
   } catch (error) {
     return { status: 'error', message: 'Could not check Turso status' };
+  }
+}
+
+async function checkCloudflarePages() {
+  try {
+    const fs = await import('fs-extra');
+    const packageJson = await fs.readJson('package.json');
+    const projectName = packageJson.name;
+    
+    // Check if wrangler is available and authenticated
+    try {
+      await execAsync('bunx wrangler --version');
+      await execAsync('bunx wrangler whoami');
+    } catch (error) {
+      return { 
+        status: 'warning', 
+        message: 'Cloudflare not configured',
+        details: ['Run: bunx wrangler login']
+      };
+    }
+    
+    // Check if Pages project exists
+    try {
+      const { stdout } = await execAsync(`bunx wrangler pages project list --json`);
+      const projects = JSON.parse(stdout);
+      const project = projects.find(p => p.name === projectName);
+      
+      if (project) {
+        // Get deployment info
+        try {
+          const { stdout: deploymentData } = await execAsync(`bunx wrangler pages deployment list --project-name=${projectName} --json`);
+          const deployments = JSON.parse(deploymentData);
+          const latestDeployment = deployments[0];
+          
+          const status = latestDeployment?.status || 'unknown';
+          const url = `https://${projectName}.pages.dev`;
+          
+          return {
+            status: status === 'success' ? 'success' : 'warning',
+            message: `Deployed (${status})`,
+            details: [
+              `Live URL: ${chalk.underline.blue(url)}`,
+              `Last deploy: ${latestDeployment?.created_on ? new Date(latestDeployment.created_on).toLocaleDateString() : 'Unknown'}`,
+              `View logs: bunx wrangler pages tail ${projectName}`
+            ]
+          };
+        } catch (error) {
+          return {
+            status: 'success',
+            message: 'Pages project exists',
+            details: [`Live URL: https://${projectName}.pages.dev`]
+          };
+        }
+      } else {
+        return {
+          status: 'warning',
+          message: 'No Pages project found',
+          details: [`Run: ${chalk.bold('bit2 deploy')} to create Pages project`]
+        };
+      }
+    } catch (error) {
+      return {
+        status: 'warning',
+        message: 'Could not check Pages status',
+        details: [`Run: ${chalk.bold('bit2 deploy')} OR setup manually at https://dash.cloudflare.com`]
+      };
+    }
+  } catch (error) {
+    return { status: 'error', message: 'Could not read project info' };
   }
 }
 
@@ -213,32 +291,33 @@ async function checkDeployment() {
     
     if (repoMatch) {
       const repoName = repoMatch[1];
-      const details = [
-        `GitHub repo: ${repoName}`,
-        'Connect at: https://dash.cloudflare.com'
-      ];
       
-      // Try to detect if it's already deployed to Cloudflare Pages
-      const fs = await import('fs-extra');
-      const packageJson = await fs.readJson('package.json');
-      const projectName = packageJson.name;
-      
-      // Common Cloudflare Pages URL patterns
-      const repoNameOnly = repoName.split('/')[1];
-      const possibleUrls = new Set([
-        `https://${projectName}.pages.dev`,
-        `https://${repoNameOnly}.pages.dev`
-      ]);
-      
-      details.push('Possible CF Pages URLs:');
-      possibleUrls.forEach(url => {
-        details.push(`  ${url}`);
-      });
+      // Check git status for uncommitted changes
+      try {
+        const { stdout: gitStatus } = await execAsync('git status --porcelain');
+        if (gitStatus.trim()) {
+          return {
+            status: 'warning',
+            message: 'Uncommitted changes detected',
+            details: [
+              `GitHub repo: ${repoName}`,
+              'Commit changes before deployment',
+              'Run: git add . && git commit -m "Update"'
+            ]
+          };
+        }
+      } catch (error) {
+        // Git status failed, continue anyway
+      }
       
       return { 
         status: 'success', 
-        message: 'Ready for Cloudflare Pages',
-        details
+        message: 'Ready for deployment',
+        details: [
+          `GitHub repo: ${repoName}`,
+          `Run: ${chalk.bold('bit2 deploy')} for automated deployment`,
+          `Or: ${chalk.bold('bit2 deploy --dry-run')} to preview`
+        ]
       };
     } else {
       return { status: 'warning', message: 'Non-GitHub remote detected' };
@@ -247,7 +326,7 @@ async function checkDeployment() {
     return { 
       status: 'warning', 
       message: 'Not ready for deployment',
-      details: ['Run: bit2 deploy to set up deployment']
+      details: [`Run: ${chalk.bold('bit2 deploy')} to set up deployment`]
     };
   }
 }

@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs-extra';
 
 export async function devCommand() {
-  console.log(chalk.blue('🚀 Starting development server...'));
+  console.log(`${chalk.yellow('∴')} Starting development server...`);
   
   // Check if we're in a bit2 project
   const astroConfigPath = path.resolve(process.cwd(), 'astro.config.mjs');

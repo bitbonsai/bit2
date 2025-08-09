@@ -31,7 +31,10 @@
       "WebFetch(domain:docs.cursor.com)",
       "Bash(../src/cli.js status)",
       "Bash(./src/cli.js status:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(bunx wrangler pages project list:*)",
+      "Bash(bunx wrangler:*)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

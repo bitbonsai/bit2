@@ -9,13 +9,14 @@ import { deployCommand } from './commands/deploy.js';
 import { migrateCommand } from './commands/migrate.js';
 import { statusCommand } from './commands/status.js';
 import { testCommand } from './commands/test.js';
+import { deleteCommand } from './commands/delete.js';
 
 const program = new Command();
 
 program
   .name('bit2')
   .description('Simple CLI tool to scaffold Astro webapps with libSQL/Turso database integration')
-  .version('1.0.0');
+  .version('2.0.0');
 
 program
   .command('new <project-name>')
@@ -34,8 +35,10 @@ program
 
 program
   .command('deploy')
-  .description('Setup GitHub repo + Turso DB + display CF setup steps')
-  .action(deployCommand);
+  .description('Automated deployment to Cloudflare Pages with Turso database')
+  .option('--dry-run', 'Preview deployment without executing')
+  .option('--local', 'Use manual setup flow (original behavior)')
+  .action((options) => deployCommand(options));
 
 program
   .command('migrate')
@@ -51,6 +54,12 @@ program
   .command('test')
   .description('Run integration tests to verify bit2 is working correctly')
   .action(testCommand);
+
+program
+  .command('delete [project-name]')
+  .description('Delete project and all associated cloud resources')
+  .option('--force', 'Skip confirmation prompt')
+  .action((projectName, options) => deleteCommand(projectName, options));
 
 // Error handling
 program.on('command:*', () => {

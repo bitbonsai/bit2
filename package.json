@@ -1,7 +1,7 @@
 {
   "name": "bit2-cli",
-  "version": "1.1.0",
-  "description": "A modern CLI tool for scaffolding Astro applications with libSQL/Turso database integration and Cloudflare Pages deployment",
+  "version": "2.0.0",
+  "description": "A modern CLI tool for scaffolding Astro applications with libSQL/Turso database integration and fully automated Cloudflare Pages deployment",
   "main": "src/cli.js",
   "bin": {
     "bit2": "./src/cli.js"
@@ -24,7 +24,8 @@
     "commander": "^12.0.0",
     "chalk": "^5.3.0",
     "fs-extra": "^11.2.0",
-    "ora": "^8.0.1"
+    "ora": "^8.0.1",
+    "wrangler": "^4.28.1"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4"
@@ -35,7 +36,15 @@
     "turso",
     "libsql",
     "cloudflare",
-    "scaffolding"
+    "cloudflare-pages",
+    "scaffolding",
+    "deployment",
+    "automation",
+    "sqlite",
+    "bun",
+    "ssr",
+    "edge",
+    "database"
   ],
   "author": "bit2",
   "license": "MIT",

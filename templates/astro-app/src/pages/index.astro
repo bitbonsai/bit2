@@ -22,6 +22,10 @@ const users = await getUsers(runtime);
       
       <div class="status-bar">
         <div class="status-item">
+          <span class="status-label">bit2:</span>
+          <span class="status-value">v2.0.0</span>
+        </div>
+        <div class="status-item">
           <span class="status-label">Database:</span>
           <span class="status-value">{import.meta.env.DEV ? 'SQLite' : 'Turso'}</span>
         </div>

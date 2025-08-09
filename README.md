@@ -4,7 +4,7 @@
 
 ![bit2 logo](https://bitbons.ai/bit-logo.svg)
 
-**A modern CLI tool for scaffolding Astro applications with libSQL/Turso database integration**
+**A modern CLI tool for scaffolding Astro applications with libSQL/Turso database integration and fully automated Cloudflare Pages deployment**
 
 [![npm version](https://badge.fury.io/js/bit2-cli.svg)](https://www.npmjs.com/package/bit2-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -27,6 +27,7 @@ bit2 is the fastest way to create modern web applications with a complete, produ
 - 🧪 **Built-in Testing** - Comprehensive integration tests
 - 📱 **Responsive** - Mobile-first design that works everywhere
 - 🔄 **Auto Setup** - Database initialization and dependency installation
+- 🚀 **One-Command Deployment** - Automated deployment to production in minutes
 
 ## 🚀 Quick Start
 
@@ -40,9 +41,12 @@ bit2 new my-awesome-app
 # Start developing
 cd my-awesome-app
 bit2 dev
+
+# Deploy to production (when ready)
+bit2 deploy
 ```
 
-That's it! Your app is running with a database, API endpoints, and a beautiful UI.
+That's it! Your app is running with a database, API endpoints, and a beautiful UI. When ready, deploy to production with a single command!
 
 ## 📋 Commands
 
@@ -67,10 +71,48 @@ Runs database migrations:
 - Works with both local and production databases
 
 ### `bit2 deploy`
-Sets up production deployment:
-- Creates Turso cloud database
-- Sets up GitHub repository
-- Provides Cloudflare Pages setup instructions
+**Fully automated production deployment:**
+- Creates and configures Turso cloud database  
+- Sets up GitHub repository and pushes code
+- Creates Cloudflare Pages project with Git integration
+- Configures environment variables automatically
+- Builds and deploys your application
+- Provides live URL when complete
+
+**Options:**
+- `--dry-run` - Preview deployment without executing
+- `--local` - Use manual setup flow (original behavior)
+
+### `bit2 status`
+Check your project's deployment status:
+- Validates project structure and dependencies
+- Shows database, repository, and deployment status
+- Provides recommendations for next steps
+- Displays live URLs and useful commands
+
+### `bit2 delete [project-name]`
+**Completely remove project and all cloud resources:**
+- Deletes Turso database (all data permanently lost)
+- Removes GitHub repository (all code history permanently lost)
+- Deletes Cloudflare Pages project (site goes offline)
+- Removes local project files
+
+**Usage:**
+```bash
+# From inside project directory
+bit2 delete
+
+# From parent directory
+bit2 delete my-project
+
+# Skip confirmation
+bit2 delete my-project --force
+```
+
+**Options:**
+- `--force` - Skip confirmation prompt (use with caution!)
+
+⚠️ **This action cannot be undone!** Use with extreme caution.
 
 ### `bit2 test`
 Runs comprehensive integration tests:
@@ -112,45 +154,77 @@ my-app/
 
 ## 🚀 Deployment
 
-Deploys to **Cloudflare Pages** with automatic Git integration:
+### Automated Deployment (New!)
 
-1. Run `bit2 deploy` to set up GitHub repo and Turso database
-2. Follow the provided instructions to configure Cloudflare Pages
-3. Auto-deploys on every push to main branch
+Deploy your entire application to production with a single command:
+
+```bash
+bit2 deploy
+```
+
+This will automatically:
+1. ✅ Create and configure your Turso cloud database
+2. ✅ Set up your GitHub repository and push your code  
+3. ✅ Create a Cloudflare Pages project with Git integration
+4. ✅ Configure all environment variables
+5. ✅ Build and deploy your application
+6. ✅ Provide your live URL
+
+**Preview before deploying:**
+```bash
+bit2 deploy --dry-run
+```
+
+**Check deployment status:**
+```bash  
+bit2 status
+```
+
+### Manual Deployment (Legacy)
+
+If you prefer manual setup:
+```bash
+bit2 deploy --local
+```
+
+This provides the traditional flow with step-by-step instructions.
 
 ### Build Settings
 - **Framework preset**: Astro
-- **Build command**: `bun run build`
+- **Build command**: `bun run build`  
 - **Build output directory**: `dist`
-
-### Environment Variables
-```
-TURSO_DATABASE_URL=your_database_url
-TURSO_AUTH_TOKEN=your_auth_token
-```
+- **Auto-deploy**: Every push to main branch
 
 ## 🛠️ Prerequisites
 
+### For Development
 - **Bun** (recommended) or Node.js 18+
-- **Turso CLI** for database management
-- **GitHub CLI** for repository creation
-- **Cloudflare account** for deployment
 
-Install prerequisites:
+### For Automated Deployment
+- **Turso CLI** for database management
+- **GitHub CLI** for repository creation  
+- **Cloudflare account** for hosting
+
+### Install & Setup
 ```bash
 # Install Bun
 curl -fsSL https://bun.sh/install | bash
 
 # Install Turso CLI
-brew install tursodatabase/tap/turso
+curl -sSfL https://get.tur.so/install.sh | bash
 
 # Install GitHub CLI
-brew install gh
+# macOS: brew install gh
+# Ubuntu: curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+# Windows: winget install --id GitHub.cli
 
-# Authenticate
+# Authenticate (for deployment)
 turso auth signup
 gh auth login
+bunx wrangler login  # For Cloudflare
 ```
+
+The `bit2 deploy` command will guide you through authentication if needed.
 
 ## 📚 Learn More
 

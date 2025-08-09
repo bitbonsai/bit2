@@ -6,7 +6,7 @@ import ora from 'ora';
 const execAsync = promisify(exec);
 
 export async function buildCommand() {
-  const spinner = ora('Building Astro application...').start();
+  const spinner = ora(`${chalk.yellow('∴')} Building Astro application...`).start();
   
   try {
     // Check if we're in a bit2 project

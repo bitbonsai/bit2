@@ -8,7 +8,7 @@ import ora from 'ora';
 const execAsync = promisify(exec);
 
 export async function migrateCommand() {
-  console.log(chalk.blue('🔄 Running database migrations...'));
+  console.log(`${chalk.yellow('∴')} Running database migrations...`);
   
   const spinner = ora('Checking for schema file...').start();
   
