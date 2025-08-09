@@ -95,8 +95,8 @@ async function deployAutomated() {
     
     // Setup Cloudflare Pages
     spinner = new TimedSpinner('Creating Cloudflare Pages project');
-    const pageInfo = await setupCloudflarePages(projectName, repoInfo);
-    spinner.succeed('Cloudflare Pages project created');
+    const pageInfo = await setupCloudflarePages(projectName, repoInfo, spinner);
+    if (spinner) spinner.succeed('Cloudflare Pages project created');
     
     // Set environment variables
     spinner = new TimedSpinner('Setting environment variables');
@@ -397,7 +397,7 @@ async function buildProject() {
   }
 }
 
-async function setupCloudflarePages(projectName, repoInfo) {
+async function setupCloudflarePages(projectName, repoInfo, spinner = null) {
   // First, get account information to handle multiple accounts
   let selectedAccountId = null;
   try {
@@ -409,14 +409,20 @@ async function setupCloudflarePages(projectName, repoInfo) {
       const accountMatches = [...whoamiOutput.matchAll(/│\s+(.+?)'s Account\s+│\s+([a-f0-9-]+)\s+│/g)];
       
       if (accountMatches.length > 1) {
-        // Multiple accounts - let user choose
+        // Multiple accounts - pause spinner and let user choose
+        if (spinner) {
+          spinner.stop();
+          spinner = null;
+        }
+        
+        console.log();
         console.log(chalk.yellow('  ℹ Multiple Cloudflare accounts detected:'));
         console.log();
         
         accountMatches.forEach((match, index) => {
           const accountName = match[1];
           const accountId = match[2];
-          console.log(chalk.gray(`  ${index + 1}. ${accountName}'s Account (${accountId})`));
+          console.log(chalk.white(`  ${index + 1}. ${accountName}'s Account (${accountId})`));
         });
         
         console.log();
@@ -600,26 +606,26 @@ async function selectAccount(accountMatches) {
   });
   
   return new Promise((resolve) => {
-    rl.question(
-      chalk.white('Select account (1-' + accountMatches.length + '): '),
-      (answer) => {
-        rl.close();
-        const selection = parseInt(answer.trim());
-        
-        if (isNaN(selection) || selection < 1 || selection > accountMatches.length) {
-          console.log(chalk.yellow('  → Invalid selection, using first account'));
-          const accountId = accountMatches[0][2];
-          const accountName = accountMatches[0][1];
-          console.log(chalk.gray(`  → Selected: ${accountName}'s Account`));
-          resolve(accountId);
-        } else {
-          const selectedMatch = accountMatches[selection - 1];
-          const accountId = selectedMatch[2];
-          const accountName = selectedMatch[1];
-          console.log(chalk.gray(`  → Selected: ${accountName}'s Account`));
-          resolve(accountId);
-        }
+    const prompt = chalk.white(`Select account (1-${accountMatches.length}): `);
+    
+    rl.question(prompt, (answer) => {
+      rl.close();
+      const selection = parseInt(answer.trim());
+      
+      if (isNaN(selection) || selection < 1 || selection > accountMatches.length) {
+        console.log(chalk.yellow('  → Invalid selection, using first account'));
+        const accountId = accountMatches[0][2];
+        const accountName = accountMatches[0][1];
+        console.log(chalk.gray(`  → Selected: ${accountName}'s Account`));
+        resolve(accountId);
+      } else {
+        const selectedMatch = accountMatches[selection - 1];
+        const accountId = selectedMatch[2];
+        const accountName = selectedMatch[1];
+        console.log(chalk.gray(`  → Selected: ${accountName}'s Account`));
+        console.log(); // Add spacing after selection
+        resolve(accountId);
       }
-    );
+    });
   });
 }

@@ -35,4 +35,9 @@ export class TimedSpinner {
   updateText(newText) {
     this.baseText = newText;
   }
+  
+  stop() {
+    clearInterval(this.timer);
+    this.spinner.stop();
+  }
 }
