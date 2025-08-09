@@ -34,7 +34,8 @@
       "Bash(find:*)",
       "Bash(bunx wrangler pages project list:*)",
       "Bash(bunx wrangler:*)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }
