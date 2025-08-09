@@ -65,11 +65,16 @@ export async function migrateCommand() {
         const migrationScript = `import { createClient } from '@libsql/client';
 
 const db = createClient({ url: 'file:./dev.db' });
-const statements = ${JSON.stringify([])}; // placeholder
+const statements = ${JSON.stringify(statements)};
+
+for (const statement of statements) {
+  await db.execute(statement);
+}
+
+await db.close();
+console.log('Migrations completed');
 `;
-        // Build script with array of statements
-        const fullScript = migrationScript.replace('[]', JSON.stringify(statements));
-        await fs.writeFile('./temp-migration.mjs', fullScript);
+        await fs.writeFile('./temp-migration.mjs', migrationScript);
         await execAsync('bun ./temp-migration.mjs');
         await fs.remove('./temp-migration.mjs');
         spinner.succeed('Migrations completed on local database (dev.db)');

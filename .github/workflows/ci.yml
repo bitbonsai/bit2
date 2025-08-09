@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+    
+    - name: Install dependencies
+      run: bun install
+    
+    - name: Run unit tests
+      run: bun test
+    
+    - name: Run integration tests
+      run: |
+        # Install SQLite for integration tests
+        sudo apt-get update
+        sudo apt-get install -y sqlite3
+        
+        # Run integration tests
+        bun run test:integration
+    
+    - name: Check CLI version
+      run: ./src/cli.js --version
+    
+    - name: Test project creation
+      run: |
+        ./src/cli.js new test-project-ci
+        cd test-project-ci
+        
+        # Verify files exist
+        test -f package.json
+        test -f astro.config.mjs
+        test -f dev.db
+        test -d src
+        test -d node_modules
+        
+        # Test build
+        bun run build
+        test -d dist
+        
+        # Cleanup
+        cd ..
+        rm -rf test-project-ci
+
+  lint:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+    
+    - name: Install dependencies
+      run: bun install
+    
+    - name: Check file formatting
+      run: |
+        # Check for trailing whitespace
+        ! grep -r '[[:space:]]$' src/ --include="*.js" || (echo "Trailing whitespace found" && exit 1)
+        
+        # Check for tabs vs spaces consistency
+        ! grep -r $'\t' src/ --include="*.js" || (echo "Tabs found, use spaces" && exit 1)
+
+  security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Check for sensitive data
+      run: |
+        # Check for potential secrets
+        ! grep -r "TURSO_AUTH_TOKEN=" . --exclude-dir=node_modules --exclude-dir=.git || (echo "Auth token found in code" && exit 1)
+        ! grep -r "VERCEL_TOKEN=" . --exclude-dir=node_modules --exclude-dir=.git || (echo "Vercel token found in code" && exit 1)
+        
+        # Check for hardcoded passwords
+        ! grep -r "password.*=.*['\"]" src/ --include="*.js" || (echo "Potential hardcoded password found" && exit 1)

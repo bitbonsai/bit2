@@ -3,11 +3,19 @@ import fs from 'fs-extra';
 import ora from 'ora';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { validateProjectName, formatValidationError } from '../utils/validation.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function newCommand(projectName) {
+  // Validate project name
+  const validation = validateProjectName(projectName);
+  if (!validation.valid) {
+    formatValidationError(validation.error);
+    process.exit(1);
+  }
+  
   console.log(`${chalk.yellow('∴')} Creating new Astro + libSQL project: ${chalk.bold(projectName)}`);
   
   // Check for bun

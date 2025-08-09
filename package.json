@@ -10,7 +10,10 @@
   "scripts": {
     "dev": "bun src/cli.js",
     "build": "echo 'No build needed for CLI'",
-    "test": "./src/cli.js test"
+    "test": "bun test",
+    "test:integration": "./src/cli.js test",
+    "test:unit": "bun test --bail",
+    "test:watch": "bun test --watch"
   },
   "repository": {
     "type": "git",
