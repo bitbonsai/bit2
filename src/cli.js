@@ -19,7 +19,7 @@ const program = new Command();
 program
   .name('bit2')
   .description('∴ bit2 - Modern CLI tool for scaffolding Astro applications with libSQL/Turso and flexible deployment')
-  .version('3.0.0')
+  .version('3.0.2')
   .addHelpText('after', '\n' +
     'Repository: https://github.com/bitbonsai/bit2\n' +
     'Issues:     https://github.com/bitbonsai/bit2/issues');

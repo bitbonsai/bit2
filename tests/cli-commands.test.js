@@ -23,9 +23,9 @@ describe('bit2 CLI Commands', () => {
   });
 
   describe('bit2 --version', () => {
-    it('should display version 3.0.0', async () => {
+    it('should display version 3.0.2', async () => {
       const { stdout } = await execAsync(`${cliPath} --version`);
-      expect(stdout.trim()).toBe('3.0.0');
+      expect(stdout.trim()).toBe('3.0.2');
     });
   });
 
@@ -73,7 +73,7 @@ describe('bit2 CLI Commands', () => {
       // Check package.json has correct name
       const packageJson = await fs.readJson(path.join(projectPath, 'package.json'));
       expect(packageJson.name).toBe(testProjectName);
-      expect(packageJson.version).toBe('3.0.0');
+      expect(packageJson.version).toBe('3.0.2');
     });
 
     it('should auto-install dependencies', async () => {

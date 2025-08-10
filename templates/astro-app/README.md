@@ -1,6 +1,6 @@
 # PROJECT_NAME
 
-A modern web application built with [bit2](https://github.com/bitbons-ai/bit2) v3.0.0 - featuring Astro, libSQL/Turso, and Vercel.
+A modern web application built with [bit2](https://github.com/bitbons-ai/bit2) v3.0.2 - featuring Astro, libSQL/Turso, and Vercel.
 
 ✨ **MCP-enabled** for AI assistants (Cursor, Claude Desktop, Windsurf, etc.)
 
@@ -165,4 +165,4 @@ No additional setup needed - it just works! ✨
 
 ---
 
-Built with ❤️ using [bit2](https://github.com/bitbons-ai/bit2) v3.0.0
+Built with ❤️ using [bit2](https://github.com/bitbons-ai/bit2) v3.0.2
