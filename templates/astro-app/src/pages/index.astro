@@ -156,6 +156,7 @@ const renderedGuides = await Promise.all(
     --color-text-primary: #ffffff;
     --color-text-secondary: #e5e7eb;
     --color-text-muted: #9ca3af;
+    --background-gradient: linear-gradient(to bottom, #324265, #090f1d);
     
     /* Spacing variables */
     --space-xs: 0.25rem;
@@ -178,6 +179,12 @@ const renderedGuides = await Promise.all(
     --size-4xl: 2rem;
     --size-5xl: 3rem;
     --size-6xl: 5rem;
+  }
+
+  html,
+  body {
+    background: var(--background-gradient);
+    min-height: 100vh;
   }
   
   .container {
