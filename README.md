@@ -2,9 +2,10 @@
 
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/bitbonsai/bit2/main/bitlogo.png" alt="bit2 logo">
+<img style="margin-bottom: 1rem" src="https://raw.githubusercontent.com/bitbonsai/bit2/main/bitlogo.png" alt="bit2 logo">
 
-**A modern CLI tool for scaffolding Astro applications with libSQL/Turso database integration and Vercel deployment**
+
+A modern CLI tool for scaffolding Astro applications with libSQL/Turso database integration and Cloudflare, Vercel or Netlify deployment
 
 [![npm version](https://badge.fury.io/js/bit2-cli.svg)](https://www.npmjs.com/package/bit2-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -15,7 +16,7 @@
 
 ## 🎯 What is bit2?
 
-bit2 is the fastest way to create modern web applications with a complete, production-ready stack. Get a beautiful Astro site with database integration and Vercel deployment configured in minutes.
+bit2 is the fastest way to create modern web applications with a complete, production-ready stack. Get a beautiful Astro site with database integration and deployment configured in minutes.
 
 ## ✨ Features
 
