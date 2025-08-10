@@ -21,10 +21,8 @@ bit2 is the fastest way to create modern web applications with a complete, produ
 
 - 🚀 **Astro 5.x** - Modern web framework with SSR and islands architecture
 - 💾 **libSQL/Turso** - SQLite for the edge with global replication
-- 🎯 **Vercel Deploy** - One-command deployment to Vercel
+- 🎯 **Multi Deploy** - One-command deployment to Cloudflare, Vercel or Netlify
 - ⚡ **Bun Runtime** - Fast JavaScript runtime and package manager
-- 🏛️ **Stoic Wisdom** - Educational content with philosophical quotes
-- 📱 **Responsive Design** - Mobile-first with professional dark theme
 - 🔄 **Auto Setup** - Database initialization and dependency installation
 
 ## 🚀 Quick Start
@@ -61,8 +59,8 @@ Starts the development server with local SQLite database and hot reload
 ### `bit2 deploy`
 Smart deployment workflow:
 - Creates Turso cloud database automatically
-- Sets up GitHub repository
-- Deploys to Vercel with automatic configuration
+- Sets up GitHub repository (optional)
+- Deploys to Cloudflare, Vercel or Netlify with automatic configuration
 - Configures environment variables
 
 ### `bit2 migrate`
@@ -96,7 +94,7 @@ my-app/
 │   └── lib/
 │       └── db.ts        # Database utilities
 ├── dev.db               # Local SQLite database
-├── astro.config.mjs     # Astro + Vercel configuration
+├── astro.config.mjs     # Astro + Cloudflare, Vercel or Netlify configuration
 └── package.json
 ```
 
@@ -115,13 +113,13 @@ my-app/
 
 ## 🚀 Deployment
 
-The `bit2 deploy` command handles everything automatically:
+The `bit2 deploy` command handles everything:
 
 1. Creates and configures your Turso cloud database
 2. Sets up GitHub repository
-3. Installs Vercel adapter  
-4. Deploys to Vercel with auto-configured build settings
-5. Sets up automatic deployments on git push
+3. Installs Cloudflare, Vercel or Netlify adapter  
+4. Shows instructions for Cloudflare, Vercel or Netlify deplyoy  configuration
+5. Next deployments on git push
 
 ## 🛠️ Prerequisites
 
@@ -130,9 +128,8 @@ The `bit2 deploy` command handles everything automatically:
 
 ### For Deployment  
 - **Turso CLI** for database management
-- **GitHub CLI** for repository creation
-- **Vercel CLI** for deployment
-- Accounts with Turso, GitHub, and Vercel
+- **GitHub CLI** for auto repository creation
+- Accounts with Turso, GitHub, and Cloudflare, Vercel or Netlify
 
 ### Install & Setup
 ```bash
@@ -145,16 +142,13 @@ turso auth signup
 
 # Install CLI tools for deployment
 brew install gh          # GitHub CLI  
-npm install -g vercel    # Vercel CLI
 gh auth login
-vercel login
 ```
 
 ## 📚 Learn More
 
 - [Astro Documentation](https://docs.astro.build)
 - [Turso Documentation](https://docs.turso.tech)
-- [Vercel Documentation](https://vercel.com/docs)
 
 ## 🤝 Contributing
 
@@ -176,7 +170,6 @@ MIT License - see the [LICENSE](LICENSE) file for details.
 
 - [Astro](https://astro.build) for the amazing web framework
 - [Turso](https://turso.tech) for edge SQLite
-- [Vercel](https://vercel.com) for seamless deployment
 - [Bun](https://bun.sh) for the fast runtime
 
 ---
