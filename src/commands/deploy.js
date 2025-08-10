@@ -8,6 +8,8 @@ import path from 'path';
 const execAsync = promisify(exec);
 
 export async function deployCommand(options = {}) {
+  let spinner;
+  
   try {
     // Check if this is a subsequent deployment first
     const fs = await import('fs-extra');
@@ -22,7 +24,7 @@ export async function deployCommand(options = {}) {
     console.log(`${chalk.yellow('∴')} Starting deployment setup...`);
     console.log();
     
-    let spinner = new TimedSpinner('Validating project');
+    spinner = new TimedSpinner('Validating project');
     
     // 1. Validate project structure
     const projectInfo = await validateProject();
@@ -267,6 +269,19 @@ export default defineConfig({
 }
 
 async function setupTursoDatabase(projectName) {
+  // Sanitize database name for Turso requirements
+  // Only numbers, lowercase letters, and dashes allowed
+  const sanitizeDbName = (name) => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')  // Replace invalid chars with dashes
+      .replace(/-+/g, '-')          // Replace multiple consecutive dashes with single dash
+      .replace(/^-+|-+$/g, '');     // Remove leading/trailing dashes
+  };
+  
+  const dbName = sanitizeDbName(projectName);
+  console.log(chalk.gray(`  ℹ Database name: ${dbName}`));
+  
   // Check if Turso CLI is available
   try {
     await execAsync('turso --version');
@@ -297,20 +312,20 @@ async function setupTursoDatabase(projectName) {
   // Check if database already exists
   let databaseExists = false;
   try {
-    await execAsync(`turso db show ${projectName}`);
+    await execAsync(`turso db show ${dbName}`);
     databaseExists = true;
-    console.log(chalk.yellow(`  ℹ Using existing Turso database: ${projectName}`));
+    console.log(chalk.yellow(`  ℹ Using existing Turso database: ${dbName}`));
   } catch (error) {
     // Database doesn't exist, create it
-    await execAsync(`turso db create ${projectName}`);
+    await execAsync(`turso db create ${dbName}`);
   }
   
   // Get database URL
-  const { stdout: urlOutput } = await execAsync(`turso db show --url ${projectName}`);
+  const { stdout: urlOutput } = await execAsync(`turso db show --url ${dbName}`);
   const databaseUrl = urlOutput.trim();
   
   // Create auth token
-  const { stdout: tokenOutput } = await execAsync(`turso db tokens create ${projectName}`);
+  const { stdout: tokenOutput } = await execAsync(`turso db tokens create ${dbName}`);
   const authToken = tokenOutput.trim();
   
   // Run migrations if database is new
@@ -376,12 +391,12 @@ async function setupTursoDatabase(projectName) {
       
       for (const statement of statements) {
         const cleanStatement = statement.replace(/'/g, `'"'"'`);
-        await execAsync(`turso db shell ${projectName} '${cleanStatement};'`);
+        await execAsync(`turso db shell ${dbName} '${cleanStatement};'`);
       }
     }
   }
   
-  return { databaseUrl, authToken };
+  return { databaseUrl, authToken, dbName };
 }
 
 async function checkGitEnvironment(projectName) {
@@ -643,7 +658,7 @@ function extractQuickSteps(markdownContent) {
 async function saveDeploymentInfo(projectName, provider, dbInfo) {
   try {
     const fs = await import('fs-extra');
-    const envContent = `# bit2 deployment configuration\nBIT2_PROJECT_NAME=${projectName}\nBIT2_PROVIDER=${provider}\nBIT2_TURSO_DATABASE=${projectName}\nBIT2_TURSO_DATABASE_URL=${dbInfo.databaseUrl}\nBIT2_TURSO_AUTH_TOKEN=${dbInfo.authToken}\nBIT2_CREATED_AT=${new Date().toISOString()}\n`;
+    const envContent = `# bit2 deployment configuration\nBIT2_PROJECT_NAME=${projectName}\nBIT2_PROVIDER=${provider}\nBIT2_TURSO_DATABASE=${dbInfo.dbName}\nBIT2_TURSO_DATABASE_URL=${dbInfo.databaseUrl}\nBIT2_TURSO_AUTH_TOKEN=${dbInfo.authToken}\nBIT2_CREATED_AT=${new Date().toISOString()}\n`;
     await fs.writeFile('.env.bit2', envContent);
   } catch (error) {
     console.log(chalk.yellow('⚠ Could not save deployment configuration'));
