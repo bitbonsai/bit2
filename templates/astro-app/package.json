@@ -1,7 +1,7 @@
 {
   "name": "template-project",
   "type": "module",
-  "version": "3.0.0",
+  "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
