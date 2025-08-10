@@ -54,11 +54,11 @@ export async function testCommand() {
     const requiredFiles = [
       'package.json',
       'src/pages/index.astro',
-      'src/components/Layout.astro',
+      'src/layouts/Layout.astro',
       'src/db/schema.sql',
       'src/db/seed.sql',
-      'src/pages/api/users.json.ts',
-      'src/pages/api/posts.json.ts',
+      'src/pages/api/quotes.json.ts',
+      'src/pages/api/quote/random.json.ts',
       'dev.db'
     ];
     
@@ -82,7 +82,7 @@ export async function testCommand() {
       });
       
       const tables = stdout.trim().split(/\s+/);
-      const requiredTables = ['users', 'posts'];
+      const requiredTables = ['quotes'];
       
       for (const table of requiredTables) {
         if (!tables.includes(table)) {
@@ -91,15 +91,11 @@ export async function testCommand() {
       }
       
       // Check data exists
-      const { stdout: userCount } = await execAsync(`sqlite3 ${dbPath} "SELECT COUNT(*) FROM users;"`, {
+      const { stdout: quoteCount } = await execAsync(`sqlite3 ${dbPath} "SELECT COUNT(*) FROM quotes;"`, {
         cwd: process.cwd()
       });
       
-      const { stdout: postCount } = await execAsync(`sqlite3 ${dbPath} "SELECT COUNT(*) FROM posts;"`, {
-        cwd: process.cwd()
-      });
-      
-      if (parseInt(userCount.trim()) === 0 || parseInt(postCount.trim()) === 0) {
+      if (parseInt(quoteCount.trim()) === 0) {
         throw new Error('Database tables are empty - seed data not loaded');
       }
       
@@ -157,22 +153,22 @@ export async function testCommand() {
       
       // Test API endpoints
       try {
-        const { stdout: usersResponse } = await execAsync('curl -s http://localhost:4321/api/users.json', {
+        const { stdout: quotesResponse } = await execAsync('curl -s http://localhost:4321/api/quotes.json', {
           timeout: 10000
         });
         
-        const users = JSON.parse(usersResponse);
-        if (!Array.isArray(users) || users.length === 0) {
-          throw new Error('Users API returned invalid data');
+        const quotes = JSON.parse(quotesResponse);
+        if (!Array.isArray(quotes) || quotes.length === 0) {
+          throw new Error('Quotes API returned invalid data');
         }
         
-        const { stdout: postsResponse } = await execAsync('curl -s http://localhost:4321/api/posts.json', {
+        const { stdout: randomQuoteResponse } = await execAsync('curl -s http://localhost:4321/api/quote/random.json', {
           timeout: 10000
         });
         
-        const posts = JSON.parse(postsResponse);
-        if (!Array.isArray(posts) || posts.length === 0) {
-          throw new Error('Posts API returned invalid data');
+        const randomQuote = JSON.parse(randomQuoteResponse);
+        if (!randomQuote || !randomQuote.quote || !randomQuote.author) {
+          throw new Error('Random quote API returned invalid data');
         }
         
         // Test main page loads
@@ -207,9 +203,9 @@ export async function testCommand() {
     console.log(chalk.gray('Tests completed:'));
     console.log(chalk.gray('  ✓ Project creation'));
     console.log(chalk.gray('  ✓ File structure'));  
-    console.log(chalk.gray('  ✓ Database initialization'));
+    console.log(chalk.gray('  ✓ Database initialization (quotes table)'));
     console.log(chalk.gray('  ✓ Build process'));
-    console.log(chalk.gray('  ✓ Dev server & API endpoints'));
+    console.log(chalk.gray('  ✓ Dev server & API endpoints (quotes API)'));
     
   } catch (error) {
     if (spinner.isSpinning) {

@@ -1,61 +1,114 @@
 import { getDatabase } from '../db/client.js';
 
-export interface User {
+// Quote interface for Stoic wisdom
+export interface Quote {
   id: number;
-  name: string;
-  email: string;
+  quote: string;
+  author: string;
+  source?: string;
+  category?: string;
+  notes?: string;
   created_at: string;
 }
 
-export interface Post {
-  id: number;
-  title: string;
-  content: string;
-  user_id: number;
-  created_at: string;
+/**
+ * Get all quotes with optional category filtering
+ * @param runtime - Runtime context for Cloudflare Workers
+ * @param category - Optional category to filter by (mindfulness, control, change, etc.)
+ * @returns Array of quotes
+ */
+export async function getQuotes(runtime?: any, category?: string): Promise<Quote[]> {
+  const db = getDatabase(runtime);
+  
+  if (category) {
+    const result = await db.execute({
+      sql: 'SELECT * FROM quotes WHERE category = ? ORDER BY created_at DESC',
+      args: [category]
+    });
+    return result.rows as Quote[];
+  }
+  
+  const result = await db.execute('SELECT * FROM quotes ORDER BY created_at DESC');
+  return result.rows as Quote[];
 }
 
-// Simplified functions - no runtime parameters needed for Vercel
-export async function getUsers(): Promise<User[]> {
-  const db = getDatabase();
-  const result = await db.execute('SELECT * FROM users ORDER BY created_at DESC');
-  return result.rows as User[];
+/**
+ * Get a random quote from the database
+ * Perfect for daily inspiration or featured quotes
+ * @param runtime - Runtime context for Cloudflare Workers
+ * @returns A single random quote or null if no quotes exist
+ */
+export async function getRandomQuote(runtime?: any): Promise<Quote | null> {
+  const db = getDatabase(runtime);
+  const result = await db.execute('SELECT * FROM quotes ORDER BY RANDOM() LIMIT 1');
+  return result.rows.length > 0 ? result.rows[0] as Quote : null;
 }
 
-export async function getUser(id: number): Promise<User | null> {
-  const db = getDatabase();
+/**
+ * Search quotes by text in quote, author, or notes
+ * @param runtime - Runtime context for Cloudflare Workers
+ * @param searchTerm - The term to search for
+ * @returns Array of matching quotes
+ */
+export async function searchQuotes(runtime?: any, searchTerm: string): Promise<Quote[]> {
+  const db = getDatabase(runtime);
   const result = await db.execute({
-    sql: 'SELECT * FROM users WHERE id = ?',
+    sql: `SELECT * FROM quotes 
+          WHERE quote LIKE ? OR author LIKE ? OR notes LIKE ? OR source LIKE ?
+          ORDER BY created_at DESC`,
+    args: [`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`]
+  });
+  return result.rows as Quote[];
+}
+
+/**
+ * Get a specific quote by ID
+ * @param runtime - Runtime context for Cloudflare Workers
+ * @param id - The quote ID
+ * @returns The quote or null if not found
+ */
+export async function getQuote(runtime?: any, id: number): Promise<Quote | null> {
+  const db = getDatabase(runtime);
+  const result = await db.execute({
+    sql: 'SELECT * FROM quotes WHERE id = ?',
     args: [id]
   });
-  return result.rows.length > 0 ? result.rows[0] as User : null;
+  return result.rows.length > 0 ? result.rows[0] as Quote : null;
 }
 
-export async function createUser(name: string, email: string): Promise<number> {
-  const db = getDatabase();
+/**
+ * Get quotes by a specific author
+ * @param runtime - Runtime context for Cloudflare Workers
+ * @param author - The author name
+ * @returns Array of quotes by that author
+ */
+export async function getQuotesByAuthor(runtime?: any, author: string): Promise<Quote[]> {
+  const db = getDatabase(runtime);
   const result = await db.execute({
-    sql: 'INSERT INTO users (name, email) VALUES (?, ?) RETURNING id',
-    args: [name, email]
+    sql: 'SELECT * FROM quotes WHERE author = ? ORDER BY created_at DESC',
+    args: [author]
   });
-  return result.lastInsertRowid as number;
+  return result.rows as Quote[];
 }
 
-export async function getPosts(): Promise<(Post & { user_name: string })[]> {
-  const db = getDatabase();
-  const result = await db.execute(`
-    SELECT p.*, u.name as user_name 
-    FROM posts p 
-    JOIN users u ON p.user_id = u.id 
-    ORDER BY p.created_at DESC
-  `);
-  return result.rows as (Post & { user_name: string })[];
+/**
+ * Get all unique categories
+ * @param runtime - Runtime context for Cloudflare Workers
+ * @returns Array of category names
+ */
+export async function getCategories(runtime?: any): Promise<string[]> {
+  const db = getDatabase(runtime);
+  const result = await db.execute('SELECT DISTINCT category FROM quotes WHERE category IS NOT NULL ORDER BY category');
+  return result.rows.map(row => row.category as string);
 }
 
-export async function createPost(title: string, content: string, userId: number): Promise<number> {
-  const db = getDatabase();
-  const result = await db.execute({
-    sql: 'INSERT INTO posts (title, content, user_id) VALUES (?, ?, ?) RETURNING id',
-    args: [title, content, userId]
-  });
-  return result.lastInsertRowid as number;
+/**
+ * Get all unique authors
+ * @param runtime - Runtime context for Cloudflare Workers
+ * @returns Array of author names
+ */
+export async function getAuthors(runtime?: any): Promise<string[]> {
+  const db = getDatabase(runtime);
+  const result = await db.execute('SELECT DISTINCT author FROM quotes ORDER BY author');
+  return result.rows.map(row => row.author as string);
 }

@@ -81,34 +81,76 @@ export async function deleteCommand(projectName, options = {}) {
       // skip printing Turso if it doesn't exist or not authenticated
     }
 
-    // GitHub and Vercel: only include if we have explicit config values
-    if (deploymentConfig) {
-      if (deploymentConfig.githubRepo) {
-        console.log(chalk.red(`  • GitHub Repository: ${chalk.white(deploymentConfig.githubRepo)}`));
-        deletionItems.push({
-          type: 'GitHub Repository', 
-          name: deploymentConfig.githubRepo,
-          deleteAction: () => execAsync(`gh repo delete ${deploymentConfig.githubRepo.split('/')[1]} --yes`)
-        });
-      }
-
-      if (deploymentConfig.vercelProject) {
-        console.log(chalk.red(`  • Vercel Project: ${chalk.white(deploymentConfig.vercelProject)}`));
-        if (deploymentConfig.deploymentUrl) {
-          console.log(chalk.gray(`    Live site: ${deploymentConfig.deploymentUrl}`));
+    // Check for GitHub repository (from config or git remote)
+    let githubRepoInfo = null;
+    
+    if (deploymentConfig?.githubRepo) {
+      githubRepoInfo = {
+        name: deploymentConfig.githubRepo,
+        settingsUrl: `https://github.com/${deploymentConfig.githubRepo}/settings`
+      };
+    } else {
+      // Check git remote for GitHub repo
+      try {
+        const { stdout: remoteUrl } = await execAsync('git remote get-url origin');
+        const match = remoteUrl.trim().match(/github\.com[/:]([^\s]+?)(?:\.git)?$/);
+        if (match) {
+          githubRepoInfo = {
+            name: match[1],
+            settingsUrl: `https://github.com/${match[1]}/settings`
+          };
         }
-        deletionItems.push({
-          type: 'Vercel Project',
-          name: deploymentConfig.vercelProject,
-          deleteAction: () => execAsync(`vercel remove ${deploymentConfig.vercelProject} --yes`)
-        });
-      }
+      } catch {}
+    }
+    
+    if (githubRepoInfo) {
+      console.log(chalk.red(`  • GitHub Repository: ${chalk.white(githubRepoInfo.name)}`));
+      deletionItems.push({
+        type: 'GitHub Repository', 
+        name: githubRepoInfo.name,
+        settingsUrl: githubRepoInfo.settingsUrl,
+        deleteAction: () => execAsync(`gh repo delete ${githubRepoInfo.name.split('/')[1]} --yes`)
+      });
+    }
+    
+    // Check for deployment platform projects
+    if (deploymentConfig?.provider) {
+      const provider = deploymentConfig.provider.toLowerCase();
+      const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+      
+      console.log(chalk.red(`  • ${providerName} Project: ${chalk.white(actualProjectName)}`));
+      
+      // All deployment providers require manual deletion
+      const dashboardUrls = {
+        cloudflare: 'https://dash.cloudflare.com/',
+        vercel: 'https://vercel.com/dashboard',
+        netlify: 'https://app.netlify.com'
+      };
+      const dashboardUrl = dashboardUrls[provider] || `https://dashboard.${provider}.com`;
+      console.log(chalk.gray(`    Manual deletion: ${dashboardUrl}`));
+      deletionItems.push({
+        type: `${providerName} Project`,
+        name: actualProjectName,
+        provider: provider,
+        dashboardUrl: dashboardUrl,
+        requiresManualDeletion: true,
+        deleteAction: () => Promise.resolve()
+      });
+    } else if (deploymentConfig?.vercelProject) {
+      // Fallback for older configs without provider field
+      console.log(chalk.red(`  • Vercel Project: ${chalk.white(deploymentConfig.vercelProject)}`));
+      console.log(chalk.gray(`    Manual deletion: https://vercel.com/dashboard`));
+      
+      deletionItems.push({
+        type: 'Vercel Project',
+        name: deploymentConfig.vercelProject,
+        provider: 'vercel',
+        requiresManualDeletion: true,
+        deleteAction: () => Promise.resolve()
+      });
     }
     
     console.log(chalk.red(`  • Local project files: ${chalk.white(projectPath)}`));
-    console.log();
-    
-    console.log(chalk.yellow('⚠️  Resources that don\'t exist will be silently skipped.'));
     console.log();
     
     // Confirmation (skip if --force)
@@ -125,54 +167,47 @@ export async function deleteCommand(projectName, options = {}) {
     console.log();
     
     // Delete cloud resources
+    const manualDeletionInstructions = [];
+    
     for (const item of deletionItems) {
-      const spinner = new TimedSpinner(`Deleting ${item.type}: ${item.name}`);
-      try {
-        await item.deleteAction();
-        spinner.succeed(`${item.type} deleted`);
-      } catch (error) {
-        // Special handling for GitHub repository deletion
-        if (item.type === 'GitHub Repository') {
-          spinner.warn(`${item.type} deletion requires manual action`);
-          
-          try {
-            // Try to capture remote URL before removal
-            let repoUrl = '';
-            try {
-              const { stdout: remoteUrl } = await execAsync('git remote get-url origin');
-              repoUrl = remoteUrl.trim();
-            } catch {}
-
-            // Remove local remote to avoid stale origin
-            try {
-              await execAsync('git remote remove origin');
-              console.log(chalk.gray('  → Removed local git remote "origin"'));
-            } catch {}
-
-            // Construct GitHub settings URL
-            let settingsUrl = '';
-            if (deploymentConfig?.githubRepo) {
-              settingsUrl = `https://github.com/${deploymentConfig.githubRepo}/settings`;
-            } else if (repoUrl) {
-              const match = repoUrl.match(/github\.com[/:]([^\s]+?)(?:\.git)?$/);
-              if (match) settingsUrl = `https://github.com/${match[1]}/settings`;
-            }
+      if (item.requiresManualDeletion) {
+        // Handle items that require manual deletion
+        const spinner = new TimedSpinner(`${item.type} requires manual deletion`);
+        spinner.warn(`Manual deletion required`);
+        
+        manualDeletionInstructions.push({
+          title: item.type,
+          projectName: item.name,
+          dashboardUrl: item.dashboardUrl
+        });
+      } else {
+        // Handle automatic deletion
+        const spinner = new TimedSpinner(`Deleting ${item.type}: ${item.name}`);
+        try {
+          await item.deleteAction();
+          spinner.succeed(`${item.type} deleted`);
+        } catch (error) {
+          // Special handling for GitHub repository deletion
+          if (item.type === 'GitHub Repository') {
+            spinner.warn(`${item.type} deletion requires manual action`);
             
-            // Provide clear instructions for manual deletion
-            console.log(chalk.yellow('  ⚠ GitHub CLI often lacks permissions to delete repos'));
-            console.log(chalk.cyan('  → Please delete manually:'));
-            if (settingsUrl) {
-              console.log(chalk.white('     1. Visit:'), chalk.underline.blue(settingsUrl));
-              console.log(chalk.white('     2. Scroll to "Danger Zone"'));
-              console.log(chalk.white('     3. Click "Delete this repository"'));
-            } else {
-              console.log(chalk.white('     1. Go to your GitHub repository settings'));
-              console.log(chalk.white('     2. Scroll to "Danger Zone"'));
-              console.log(chalk.white('     3. Click "Delete this repository"'));
-            }
-          } catch {}
-        } else {
-          spinner.warn(`${item.type} not found or already deleted`);
+            try {
+              // Remove local remote to avoid stale origin
+              try {
+                await execAsync('git remote remove origin');
+                console.log(chalk.gray('  → Removed local git remote "origin"'));
+              } catch {}
+              
+              // Add to manual instructions
+              manualDeletionInstructions.push({
+                title: 'GitHub Repository',
+                projectName: item.name,
+                dashboardUrl: item.settingsUrl
+              });
+            } catch {}
+          } else {
+            spinner.warn(`${item.type} not found or already deleted`);
+          }
         }
       }
     }
@@ -197,22 +232,30 @@ export async function deleteCommand(projectName, options = {}) {
       console.log(chalk.yellow(`Please manually delete: ${projectPath}`));
     }
     
-    // Success message
+    // Show manual deletion instructions if needed
+    if (manualDeletionInstructions.length > 0) {
+      console.log();
+      console.log(chalk.yellow('⚠️  Manual deletion required:'));
+      
+      manualDeletionInstructions.forEach((instruction) => {
+        if (instruction.title === 'GitHub Repository') {
+          console.log(chalk.cyan(`GitHub Repository: ${instruction.projectName} (${instruction.dashboardUrl})`));
+        } else if (instruction.title.includes('Project')) {
+          // For Cloudflare, Vercel, Netlify projects
+          console.log(chalk.cyan(`${instruction.title}: ${instruction.projectName} (${instruction.dashboardUrl})`));
+        } else {
+          console.log(chalk.cyan(`${instruction.title}: ${instruction.projectName}`));
+          console.log(chalk.gray(`${instruction.dashboardUrl}`));
+        }
+      });
+    }
+
     console.log();
-    console.log(chalk.bold.green('DELETION COMPLETE'));
-    console.log();
-    console.log(chalk.green(`✅ Project "${actualProjectName}" has been completely removed.`));
-    console.log(chalk.gray('All cloud resources and local files have been deleted.'));
+    console.log(chalk.green(`✅ Project "${actualProjectName}" deleted`));
     
     if (isInsideProject) {
-      console.log();
-      console.log(chalk.yellow('📁 Your shell is still in the deleted directory.'));
-      console.log(chalk.gray('Run this command to go to parent directory:'));
-      console.log();
-      console.log(chalk.cyan('cd ..'));
+      console.log(chalk.gray('Run: cd ..'));
     }
-    
-    console.log();
     
   } catch (error) {
     console.error(chalk.red('❌ Deletion failed:'), error.message);
@@ -237,6 +280,9 @@ async function readDeploymentConfig(configPath) {
         switch (configKey) {
           case 'project_name':
             config.projectName = value;
+            break;
+          case 'provider':
+            config.provider = value;
             break;
           case 'turso_database':
             config.tursoDatabase = value;

@@ -77,12 +77,14 @@ export async function newCommand(projectName) {
     if (await fs.pathExists(indexPath)) {
       let indexContent = await fs.readFile(indexPath, 'utf8');
       indexContent = indexContent.replace(/v2\.0\.0/g, `v${bit2Version}`);
+      indexContent = indexContent.replace(/BIT2_VERSION_PLACEHOLDER/g, bit2Version);
       await fs.writeFile(indexPath, indexContent);
     }
     
     if (await fs.pathExists(aboutPath)) {
       let aboutContent = await fs.readFile(aboutPath, 'utf8');
       aboutContent = aboutContent.replace(/v2\.0\.0/g, `v${bit2Version}`);
+      aboutContent = aboutContent.replace(/BIT2_VERSION_PLACEHOLDER/g, bit2Version);
       await fs.writeFile(aboutPath, aboutContent);
     }
     
@@ -106,16 +108,53 @@ export async function newCommand(projectName) {
       const seedContent = await fs.readFile(path.join(projectPath, 'src/db/seed.sql'), 'utf8');
       
       // Helper function to split SQL statements
+      // This function properly handles semicolons within quoted strings
       const splitSqlStatements = (sql) => {
-        // Remove comment lines and empty lines first
         const lines = sql.split('\n');
         const cleanLines = lines.filter(line => !line.trim().startsWith('--') && line.trim() !== '');
         const cleanSql = cleanLines.join('\n');
         
-        return cleanSql
-          .split(';')
-          .map(stmt => stmt.trim())
-          .filter(stmt => stmt.length > 0);
+        const statements = [];
+        let currentStatement = '';
+        let inSingleQuotes = false;
+        let inDoubleQuotes = false;
+        let i = 0;
+        
+        while (i < cleanSql.length) {
+          const char = cleanSql[i];
+          
+          if (char === "'" && !inDoubleQuotes) {
+            // Check for escaped single quotes
+            if (i + 1 < cleanSql.length && cleanSql[i + 1] === "'") {
+              currentStatement += "''";
+              i += 2;
+              continue;
+            }
+            inSingleQuotes = !inSingleQuotes;
+          } else if (char === '"' && !inSingleQuotes) {
+            inDoubleQuotes = !inDoubleQuotes;
+          } else if (char === ';' && !inSingleQuotes && !inDoubleQuotes) {
+            // End of statement
+            const stmt = currentStatement.trim();
+            if (stmt.length > 0) {
+              statements.push(stmt);
+            }
+            currentStatement = '';
+            i++;
+            continue;
+          }
+          
+          currentStatement += char;
+          i++;
+        }
+        
+        // Add the last statement if there is one
+        const lastStmt = currentStatement.trim();
+        if (lastStmt.length > 0) {
+          statements.push(lastStmt);
+        }
+        
+        return statements;
       };
       
       // Parse SQL statements

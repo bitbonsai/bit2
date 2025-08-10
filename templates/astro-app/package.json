@@ -1,7 +1,7 @@
 {
   "name": "template-project",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.9.0",
   "scripts": {
     "dev": "astro dev",
     "start": "astro dev",
@@ -10,12 +10,11 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/vercel": "latest",
     "@libsql/client": "latest",
-    "astro": "latest",
-    "astro-mcp": "latest"
+    "astro": "latest"
   },
   "devDependencies": {
-    "@types/node": "latest"
+    "@types/node": "latest",
+    "typescript": "latest"
   }
 }

@@ -1,10 +1,26 @@
 ---
-import Layout from '../components/Layout.astro'
-import { getPosts, getUsers } from '../lib/db'
+import Layout from '@layouts/Layout.astro';
+import { getRandomQuote } from '@lib/db';
+import { getCollection } from 'astro:content';
 
-// Simplified for Vercel - no runtime parameters needed
-const posts = await getPosts()
-const users = await getUsers()
+// Get data
+const randomQuote = await getRandomQuote(Astro.locals.runtime);
+const deploymentGuides = await getCollection('deployment');
+
+// bit2 version (replaced during project creation)
+const version = 'BIT2_VERSION_PLACEHOLDER';
+
+// Render the markdown content for each guide
+const renderedGuides = await Promise.all(
+  deploymentGuides.map(async (guide) => {
+    const { Content } = await guide.render();
+    return {
+      ...guide,
+      RenderedContent: Content
+    };
+  })
+);
+
 ---
 
 <Layout title="Welcome to bit2">
@@ -17,105 +33,70 @@ const users = await getUsers()
         Welcome to <span class="brand">bit2</span>
       </h1>
       <p class="hero-subtitle">
-        The web framework for building fast, content-focused websites with Astro and libSQL.
+        Modern web development with Astro, libSQL, and your choice of deployment platform.
       </p>
-
-      <div class="status-bar">
-        <div class="status-item">
-          <span class="status-label">bit2:</span>
-          <span class="status-value">v0.9.0</span>
-        </div>
-        <div class="status-item">
-          <span class="status-label">Database:</span>
-          <span class="status-value">{import.meta.env.DEV ? 'SQLite' : 'Turso'}</span>
-        </div>
-        <div class="status-item">
-          <span class="status-label">Users:</span>
-          <span class="status-value">{users.length}</span>
-        </div>
-        <div class="status-item">
-          <span class="status-label">Posts:</span>
-          <span class="status-value">{posts.length}</span>
-        </div>
+      <div class="version-badge">
+        <span class="version-label">Built with bit2</span>
+        <span class="version-value">v{version}</span>
       </div>
+
+      <!-- Daily Quote -->
+      {randomQuote && (
+        <div class="daily-quote">
+          <blockquote>
+            <p>"{randomQuote.quote}"</p>
+            <footer>— {randomQuote.author}, <cite>{randomQuote.source}</cite></footer>
+          </blockquote>
+        </div>
+      )}
     </header>
 
-    <section class="content-section">
-      <div class="section-header">
-        <h2>Recent Posts</h2>
-      </div>
 
-      {
-        posts.length > 0 ? (
-          <div class="posts-grid">
-            {posts.map((post) => (
-              <article class="post-card">
-                <h3>{post.title}</h3>
-                <p>{post.content}</p>
-                <div class="post-meta">
-                  <span>By {post.user_name}</span>
-                  <span>{new Date(post.created_at).toLocaleDateString()}</span>
-                </div>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <div class="empty-state">
-            <p>
-              No posts yet. Run <code>bit2 migrate</code> to seed sample data.
-            </p>
-          </div>
-        )
-      }
-    </section>
-
-    <section class="content-section">
-      <div class="section-header">
-        <h2>Team Members</h2>
-      </div>
-
-      {
-        users.length > 0 ? (
-          <div class="users-grid">
-            {users.map((user) => (
-              <div class="user-card">
-                <div class="user-initial">{user.name.charAt(0)}</div>
-                <div class="user-details">
-                  <h4>{user.name}</h4>
-                  <p>{user.email}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div class="empty-state">
-            <p>
-              No users yet. Run <code>bit2 migrate</code> to seed sample data.
-            </p>
-          </div>
-        )
-      }
-    </section>
-
+    <!-- API Endpoints -->
     <section class="content-section">
       <div class="section-header">
         <h2>API Endpoints</h2>
+        <p class="section-description">RESTful API for quote management</p>
       </div>
 
       <div class="api-grid">
-        <a href="/api/users.json" target="_blank" class="api-card">
+        <a href="/api/quotes.json" target="_blank" class="api-card">
           <div class="api-method">GET</div>
           <div class="api-details">
-            <h4>/api/users.json</h4>
-            <p>Retrieve all registered users</p>
+            <h4>/api/quotes.json</h4>
+            <p>Retrieve all quotes</p>
           </div>
         </a>
 
-        <a href="/api/posts.json" target="_blank" class="api-card">
+        <a href="/api/quote/random.json" target="_blank" class="api-card">
           <div class="api-method">GET</div>
           <div class="api-details">
-            <h4>/api/posts.json</h4>
-            <p>Get all published posts with author info</p>
+            <h4>/api/quote/random.json</h4>
+            <p>Get a random quote for inspiration</p>
+          </div>
+        </a>
+
+        <a href="/api/quotes/search.json?q=wisdom" target="_blank" class="api-card">
+          <div class="api-method">GET</div>
+          <div class="api-details">
+            <h4>/api/quotes/search.json?q=term</h4>
+            <p>Search quotes by keyword</p>
+          </div>
+        </a>
+
+        <a href="/api/quotes.json?category=mindfulness" target="_blank" class="api-card">
+          <div class="api-method">GET</div>
+          <div class="api-details">
+            <h4>/api/quotes.json?category=type</h4>
+            <p>Filter quotes by category</p>
+          </div>
+        </a>
+
+        <a href="/api/quote/1.json" target="_blank" class="api-card">
+          <div class="api-method">GET</div>
+          <div class="api-details">
+            <h4>/api/quote/[id].json</h4>
+            <p>Get specific quote by ID</p>
           </div>
         </a>
 
@@ -123,36 +104,103 @@ const users = await getUsers()
           <div class="api-method">PAGE</div>
           <div class="api-details">
             <h4>/about</h4>
-            <p>Learn more about this application</p>
+            <p>Learn more about this stack</p>
           </div>
         </a>
+      </div>
+    </section>
+
+    <!-- Deployment Section -->
+    <section class="content-section">
+      <div class="section-header">
+        <h2>Deploy Your App</h2>
+        <p class="section-description">
+          Run `bit2 deploy` to set up your database and choose a deployment platform
+        </p>
+      </div>
+
+      <div class="deployment-guides">
+        {renderedGuides.map((guide) => (
+          <details class="deployment-accordion">
+            <summary class="deployment-header">
+              <span class="deployment-title">{guide.data.title}</span>
+              <span class="deployment-arrow">→</span>
+            </summary>
+            <div class="deployment-content">
+              <div class="deployment-prose">
+                <guide.RenderedContent />
+              </div>
+            </div>
+          </details>
+        ))}
+      </div>
+
+      <div class="git-setup-hint">
+        <h3>🚀 Quick Start</h3>
+        <ol>
+          <li>Run <code>bit2 deploy</code> to set up your database and install the right adapter</li>
+          <li>Push your code to GitHub, GitLab, or Bitbucket</li>
+          <li>Follow the guide above for your chosen platform</li>
+        </ol>
       </div>
     </section>
   </main>
 </Layout>
 
 <style>
+  :root {
+    --color-primary: #fcd34d;
+    --color-primary-darker: #fbbf24;
+    --color-secondary: #273041;
+    --color-background: #1a2436;
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #e5e7eb;
+    --color-text-muted: #9ca3af;
+    
+    /* Spacing variables */
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
+    --space-3xl: 4rem;
+    --space-4xl: 6rem;
+    
+    /* Size variables */
+    --size-xs: 0.125rem;
+    --size-sm: 0.25rem;
+    --size-md: 0.5rem;
+    --size-lg: 0.75rem;
+    --size-xl: 1rem;
+    --size-2xl: 1.25rem;
+    --size-3xl: 1.5rem;
+    --size-4xl: 2rem;
+    --size-5xl: 3rem;
+    --size-6xl: 5rem;
+  }
+  
   .container {
-    max-width: 1280px;
+    max-width: 80rem;
     margin: 0 auto;
-    padding: 4rem 2rem;
+    padding: var(--space-3xl) var(--space-xl);
   }
 
-  /* Hero Section - Astro Style */
+  /* Hero Section */
   .hero {
     text-align: center;
-    margin-bottom: 6rem;
+    margin-bottom: var(--space-4xl);
   }
 
   .hero-logo {
-    margin-bottom: 2rem;
+    margin-bottom: var(--space-xl);
   }
 
   .logo {
-    width: 80px;
-    height: 80px;
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    width: var(--size-6xl);
+    height: var(--size-6xl);
+    border-radius: var(--space-md);
+    box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3);
     transition: transform 0.2s ease;
   }
 
@@ -164,8 +212,8 @@ const users = await getUsers()
     font-size: clamp(3rem, 8vw, 6rem);
     font-weight: 800;
     line-height: 1.1;
-    margin: 0 0 1.5rem 0;
-    color: #fff;
+    margin: 0 0 var(--space-lg) 0;
+    color: var(--color-text-primary);
   }
 
   .brand {
@@ -177,153 +225,96 @@ const users = await getUsers()
 
   .hero-subtitle {
     font-size: 1.375rem;
-    color: #9ca3af;
-    margin: 0 0 3rem 0;
-    max-width: 640px;
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-xl) 0;
+    max-width: 40rem;
     margin-left: auto;
     margin-right: auto;
     line-height: 1.5;
   }
 
-  .status-bar {
+  .version-badge {
     display: inline-flex;
-    gap: 2rem;
-    padding: 1rem 2rem;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    backdrop-filter: blur(8px);
-  }
-
-  .status-item {
-    display: flex;
     align-items: center;
-    gap: 0.5rem;
-    font-size: 0.9rem;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-secondary);
+    border: 1px solid rgba(39, 48, 65, 0.5);
+    border-radius: var(--size-md);
+    font-size: 0.875rem;
+    margin-bottom: var(--space-md);
   }
 
-  .status-label {
-    color: #9ca3af;
+  .version-label {
+    color: var(--color-text-muted);
   }
 
-  .status-value {
-    color: #fff;
+  .version-value {
+    color: var(--color-primary);
     font-weight: 600;
+  }
+
+  /* Daily Quote */
+  .daily-quote {
+    margin-top: var(--space-2xl);
+    padding: var(--space-xl);
+    background: var(--color-secondary);
+    border: 1px solid rgba(39, 48, 65, 0.5);
+    border-radius: var(--space-md);
+    max-width: 50rem;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .daily-quote blockquote {
+    margin: 0;
+  }
+
+  .daily-quote p {
+    font-size: 1.25rem;
+    color: var(--color-text-primary);
+    margin: 0 0 var(--space-md) 0;
+    font-style: italic;
+  }
+
+  .daily-quote footer {
+    color: var(--color-primary);
+    font-size: 0.95rem;
+  }
+
+  .daily-quote cite {
+    opacity: 0.8;
   }
 
   /* Content Sections */
   .content-section {
-    margin-bottom: 6rem;
+    margin-bottom: var(--space-4xl);
   }
 
   .section-header {
-    margin-bottom: 2rem;
+    margin-bottom: var(--space-xl);
   }
 
   .section-header h2 {
     font-size: 2.5rem;
     font-weight: 700;
-    color: #fff;
-    margin: 0;
+    color: var(--color-text-primary);
+    margin: 0 0 var(--space-sm) 0;
   }
 
-  /* Posts Grid */
-  .posts-grid {
-    display: grid;
-    gap: 1.5rem;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  }
-
-  .post-card {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1.5rem;
-    transition: all 0.2s ease;
-  }
-
-  .post-card:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(251, 191, 36, 0.3);
-    transform: translateY(-2px);
-  }
-
-  .post-card h3 {
-    margin: 0 0 1rem 0;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: #fff;
-  }
-
-  .post-card p {
-    margin: 0 0 1.5rem 0;
-    color: #9ca3af;
-    line-height: 1.6;
-  }
-
-  .post-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.875rem;
-    color: #6b7280;
-  }
-
-  /* Users Grid */
-  .users-grid {
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  }
-
-  .user-card {
-    display: flex;
-    align-items: center;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1.5rem;
-    transition: all 0.2s ease;
-  }
-
-  .user-card:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(245, 158, 11, 0.3);
-    transform: translateY(-2px);
-  }
-
-  .user-initial {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 1.25rem;
-    margin-right: 1rem;
-  }
-
-  .user-details h4 {
-    margin: 0 0 0.25rem 0;
+  .section-description {
+    color: var(--color-text-muted);
     font-size: 1.125rem;
-    font-weight: 600;
-    color: #fff;
+    margin: 0;
   }
 
-  .user-details p {
-    margin: 0;
-    color: #9ca3af;
-    font-size: 0.9rem;
-  }
 
   /* API Grid */
   .api-grid {
     display: grid;
     gap: 1rem;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    margin-top: 2rem;
   }
 
   .api-card {
@@ -367,53 +358,223 @@ const users = await getUsers()
     margin: 0 0 0.25rem 0;
     font-size: 1rem;
     font-weight: 600;
-    color: #fff;
-    font-family: 'Courier New', monospace;
+    color: var(--color-primary);
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   }
 
   .api-details p {
     margin: 0;
-    color: #9ca3af;
+    color: var(--color-text-muted);
     font-size: 0.875rem;
   }
 
-  /* Empty State */
-  .empty-state {
-    text-align: center;
-    padding: 4rem 2rem;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
-    border-radius: 12px;
-    color: #6b7280;
+  /* Deployment Guides */
+  .deployment-guides {
+    margin-top: 2rem;
   }
 
-  .empty-state p {
+  .deployment-accordion {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+
+  .deployment-accordion[open] {
+    border-color: rgba(251, 191, 36, 0.3);
+  }
+
+  .deployment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.5rem;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+  }
+
+  .deployment-header::-webkit-details-marker {
+    display: none;
+  }
+
+  .deployment-header:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .deployment-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .deployment-arrow {
+    color: var(--color-primary);
+    transition: transform 0.2s ease;
+  }
+
+  details[open] .deployment-arrow {
+    transform: rotate(90deg);
+  }
+
+  .deployment-content {
+    padding: 0 1.5rem 1.5rem;
+  }
+
+  .deployment-prose {
+    color: var(--color-text-primary);
+    line-height: 1.7;
+  }
+
+  /* Additional global styles for rendered markdown */
+  .deployment-content :global(p) {
+    color: var(--color-text-primary);
+    margin-bottom: var(--space-md);
+  }
+
+  .deployment-content :global(h1),
+  .deployment-content :global(h2),
+  .deployment-content :global(h3),
+  .deployment-content :global(h4),
+  .deployment-content :global(h5),
+  .deployment-content :global(h6) {
+    color: var(--color-text-primary);
+  }
+
+  .deployment-content :global(ul),
+  .deployment-content :global(ol) {
+    color: var(--color-text-primary);
+  }
+
+  .deployment-content :global(li) {
+    color: var(--color-text-primary);
+  }
+
+  .deployment-prose h1,
+  .deployment-prose h2,
+  .deployment-prose h3 {
+    color: var(--color-text-primary);
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+  }
+
+  .deployment-prose h1 { font-size: 2rem; }
+  .deployment-prose h2 { font-size: 1.5rem; }
+  .deployment-prose h3 { font-size: 1.25rem; }
+
+  .deployment-prose p {
+    margin-bottom: 1rem;
+  }
+
+  .deployment-content :global(code:not(pre code)) {
+    background: var(--color-secondary);
+    color: var(--color-primary);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--space-sm);
+    border: 1px solid rgba(39, 48, 65, 0.6);
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
+    font-size: 0.875rem;
+    font-weight: 600;
+    box-shadow: 0 0.0625rem 0.1875rem rgba(0, 0, 0, 0.2);
+  }
+
+  .deployment-content :global(pre) {
+    background-color: var(--color-background) !important;
+    color: #e1e4e8;
+    overflow-x: auto;
+    border-radius: var(--size-md);
+    padding: var(--space-md);
+    margin: var(--space-md) 0;
+    border: 1px solid rgba(39, 48, 65, 0.6);
+  }
+
+  .deployment-content :global(pre code) {
+    background: none;
+    background-color: transparent;
+    padding: 0;
+    border: none;
+    box-shadow: none;
+    color: var(--color-text-secondary);
+  }
+
+  .deployment-prose ul,
+  .deployment-prose ol {
+    margin: 1rem 0;
+    padding-left: 2rem;
+  }
+
+  .deployment-prose li {
+    margin-bottom: 0.5rem;
+  }
+
+  /* Use :global() to target rendered markdown elements */
+  .deployment-content :global(a) {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .deployment-content :global(a:hover) {
+    color: var(--color-primary-darker);
+    text-decoration: underline;
+  }
+
+  .deployment-prose table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+  }
+
+  .deployment-prose th,
+  .deployment-prose td {
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.5rem;
+    text-align: left;
+  }
+
+  .deployment-prose th {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--color-text-primary);
+  }
+
+  /* Git Setup Hint */
+  .git-setup-hint {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    background: var(--color-background);
+    border: 1px solid rgba(251, 191, 36, 0.2);
+    border-radius: 12px;
+  }
+
+  .git-setup-hint h3 {
+    margin: 0 0 1rem 0;
+    color: var(--color-primary);
+  }
+
+  .git-setup-hint ol {
     margin: 0;
-    font-size: 1.125rem;
+    padding-left: 1.5rem;
+    color: var(--color-text-secondary);
+  }
+
+  .git-setup-hint li {
+    margin-bottom: 0.5rem;
   }
 
   code {
-    background: rgba(251, 191, 36, 0.2);
-    color: #fbbf24;
+    background: var(--color-secondary);
+    color: var(--color-primary);
     padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-family: 'Courier New', monospace;
+    border-radius: 6px;
+    border: 1px solid rgba(39, 48, 65, 0.6);
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
     font-size: 0.875rem;
-    font-weight: 500;
+    font-weight: 600;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   }
 
   /* Responsive Design */
-  @media (max-width: 1024px) {
-    .status-bar {
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .status-item {
-      justify-content: center;
-    }
-  }
-
   @media (max-width: 768px) {
     .container {
       padding: 2rem 1rem;
@@ -431,16 +592,8 @@ const users = await getUsers()
       font-size: 2rem;
     }
 
-    .posts-grid,
-    .users-grid,
     .api-grid {
       grid-template-columns: 1fr;
-    }
-
-    .post-meta {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.25rem;
     }
   }
 </style>

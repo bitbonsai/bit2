@@ -7,29 +7,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 This is a modern web application built with the bit2 stack:
 - **Framework**: Astro 5.x with SSR capabilities
 - **Database**: libSQL (SQLite-compatible) with Turso cloud integration  
-- **Deployment**: Vercel with automated Git integration
+- **Deployment**: Flexible - Cloudflare Pages, Vercel, or Netlify
 - **Runtime**: Bun for package management and development
 - **Styling**: Native CSS with component-scoped styles
+- **Content**: Astro content collections for deployment guides
 
 ## Architecture & Key Files
 
 ### Core Application Structure
-- **Entry Point**: `src/pages/index.astro` - Main landing page with database queries
-- **Layout**: `src/components/Layout.astro` - Shared layout component with dark theme
+- **Entry Point**: `src/pages/index.astro` - Main landing page with Stoic quotes
+- **Layout**: `src/layouts/Layout.astro` - Shared layout component with dark theme (moved from components)
 - **Database Client**: `src/db/client.ts` - Automatically switches between local SQLite and Turso cloud
-- **Database Functions**: `src/lib/db.ts` - Query functions for posts and users
-- **API Routes**: `src/pages/api/` - JSON endpoints for data access
+- **Database Functions**: `src/lib/db.ts` - Query functions for Stoic quotes with extensive TypeScript documentation
+- **API Routes**: `src/pages/api/` - JSON endpoints for quote management
+- **Content Collections**: `src/content/deployment/` - Markdown deployment guides
+- **Path Aliases**: `@layouts`, `@components`, `@lib`, `@db`, `@content` configured in tsconfig.json
 
 ### Database Configuration
 - **Local Development**: Uses `./dev.db` SQLite file (created automatically)
 - **Production**: Switches to Turso cloud database via environment variables
-- **Schema**: Defined in `src/db/schema.sql` with users and posts tables
-- **Seeds**: Sample data in `src/db/seed.sql` for development
+- **Schema**: Defined in `src/db/schema.sql` with quotes table for Stoic wisdom
+- **Seeds**: 9 carefully selected Stoic quotes in `src/db/seed.sql` from Marcus Aurelius, Seneca, and Epictetus
+- **Categories**: Quotes are categorized (mindfulness, control, change, resilience, virtue, anxiety, contentment, action, perseverance)
 
 ### Deployment & Infrastructure
 - **Local Dev**: `bun dev` starts Astro dev server with SQLite
 - **Build**: `bun run build` creates static assets in `dist/`
-- **Deploy**: `bit2 deploy` handles full deployment pipeline to Vercel
+- **Deploy**: `bit2 deploy` sets up provider choice and adapter installation
+- **Providers**: Cloudflare Pages, Vercel, or Netlify with auto-adapter installation
 - **Status**: `bit2 status` shows deployment and infrastructure status
 
 ## Development Workflow

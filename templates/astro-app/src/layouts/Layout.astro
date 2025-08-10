@@ -12,6 +12,7 @@ const { title } = Astro.props;
     <meta charset="UTF-8" />
     <meta name="description" content="bit2 - Astro + libSQL/Turso web app" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#1d2739" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
   </head>
@@ -21,14 +22,19 @@ const { title } = Astro.props;
 </html>
 
 <style is:global>
+  :root {
+    --color-background: #1a2436;
+  }
+
   html {
     font-family: system-ui, sans-serif;
     line-height: 1.6;
+    background: var(--color-background);
   }
   
   body {
     margin: 0;
-    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    background: var(--color-background);
     min-height: 100vh;
     color: #fff;
   }

@@ -2,7 +2,38 @@
 
 All notable changes to bit2 will be documented in this file.
 
-## [2.0.0] - 2025-08-09
+## [1.0.0] - 2025-01-20
+
+### 🎯 Developer Experience Enhancements
+
+### Added
+- **New `bit2 db` command** - Complete database management
+  - `bit2 db info` - Show database overview and connection details
+  - `bit2 db shell` - Interactive SQL shell
+  - `bit2 db token` - Generate production auth tokens anytime
+  - `bit2 db create` - Create new Turso databases
+- **New `bit2 open` command** - Instantly open deployment dashboards in browser
+- **New `bit2 logs` command** - View recent deployment logs with provider-specific commands
+- **Enhanced `bit2 status`** - Now shows dashboard URLs, creation dates, last deploy info
+- **Smart subsequent deployments** - `bit2 deploy` now detects existing deployments and provides cleaner workflow
+
+### Changed
+- **Improved deployment workflow**: First deploy does full setup, subsequent deploys check for uncommitted changes then push
+- **Better database architecture**: Removed problematic default export, fixed environment variable handling
+- **Cleaner CLI output**: Removed unnecessary validation messages for subsequent deployments
+- **Updated documentation**: Comprehensive README with new command workflows and examples
+
+### Fixed
+- **Database client errors**: Fixed build-time environment variable access issues
+- **Delete command improvements**: Added proper Cloudflare fallback, removed duplicate GitHub links
+- **Template cleanup**: Removed unnecessary git remote checks from index page (eliminated Vite warnings)
+- **All database functions**: Now consistently use explicit runtime parameter pattern
+
+### Removed
+- **Live URL guessing**: Status command no longer attempts unreliable deployment URL prediction
+- **Wrangler deletion attempts**: Deploy delete now uses manual instructions for all providers
+
+## [0.9.0] - 2025-08-09 (Previous Release)
 
 ### 🚀 Breaking Changes
 - `bit2 deploy` now performs **fully automated deployment** by default
@@ -16,24 +47,14 @@ All notable changes to bit2 will be documented in this file.
 - **Automated Cloudflare Pages deployment** with wrangler integration
 - **Interactive account selection** for multiple Cloudflare accounts
 - **`bit2 delete` command** for complete project and infrastructure removal
-  - Removes Turso database
-  - Deletes GitHub repository
-  - Removes Cloudflare Pages project
-  - Cleans up local files
 - **`bit2 status` command** for checking deployment and infrastructure status
 - **Progress indicators with timers** using ora spinners
 - **Version tracking** in generated projects
 - **CLAUDE.md** file in template for better AI assistant integration
-- **Deployment flags**:
-  - `--dry-run` to preview deployment plan
-  - `--local` for manual deployment with instructions
 
 ### 🎨 UI/UX Improvements
 - Yellow `∴` symbol branding throughout CLI
 - Cleaned up visual hierarchy with bold colored text
-- Removed background boxes for cleaner output
-- Made bit2 commands bold in help text
-- Added elapsed time to all long-running operations
 - Improved error messages with recovery steps
 
 ### 🔧 Technical Improvements
@@ -41,15 +62,8 @@ All notable changes to bit2 will be documented in this file.
 - Enhanced error handling for permission issues
 - Better handling of multi-statement SQL files
 - Improved Git repository detection and setup
-- Added .gitignore to template projects
 
-### 🐛 Bug Fixes
-- Fixed status command creating resources instead of just checking
-- Fixed delete command not properly removing local files
-- Fixed database initialization with comments in SQL files
-- Fixed multiple Cloudflare accounts handling
-
-## [1.0.0] - Initial Release
+## [0.8.0] - Initial Release
 - Basic scaffolding for Astro + libSQL projects
 - Manual deployment workflow
 - Database migration support

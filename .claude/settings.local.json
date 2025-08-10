@@ -37,7 +37,14 @@
       "Bash(touch:*)",
       "Bash(git push:*)",
       "Bash(mv:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "WebFetch(domain:vercel.com)",
+      "WebFetch(domain:docs.netlify.com)",
+      "Bash(mkdir:*)",
+      "Bash(cat:*)",
+      "Bash(../src/cli.js migrate)",
+      "Bash(bun:*)",
+      "Bash(./src/cli.js --help)"
     ],
     "deny": []
   }

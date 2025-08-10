@@ -29,14 +29,53 @@ export async function migrateCommand() {
     const isProduction = process.env.NODE_ENV === 'production';
     
     // Split SQL into individual statements and clean them
+    // This function properly handles semicolons within quoted strings
     const splitSqlStatements = (sql) => {
       const lines = sql.split('\n');
       const cleanLines = lines.filter(line => !line.trim().startsWith('--') && line.trim() !== '');
       const cleanSql = cleanLines.join('\n');
-      return cleanSql
-        .split(';')
-        .map(stmt => stmt.trim())
-        .filter(stmt => stmt.length > 0);
+      
+      const statements = [];
+      let currentStatement = '';
+      let inSingleQuotes = false;
+      let inDoubleQuotes = false;
+      let i = 0;
+      
+      while (i < cleanSql.length) {
+        const char = cleanSql[i];
+        
+        if (char === "'" && !inDoubleQuotes) {
+          // Check for escaped single quotes
+          if (i + 1 < cleanSql.length && cleanSql[i + 1] === "'") {
+            currentStatement += "''";
+            i += 2;
+            continue;
+          }
+          inSingleQuotes = !inSingleQuotes;
+        } else if (char === '"' && !inSingleQuotes) {
+          inDoubleQuotes = !inDoubleQuotes;
+        } else if (char === ';' && !inSingleQuotes && !inDoubleQuotes) {
+          // End of statement
+          const stmt = currentStatement.trim();
+          if (stmt.length > 0) {
+            statements.push(stmt);
+          }
+          currentStatement = '';
+          i++;
+          continue;
+        }
+        
+        currentStatement += char;
+        i++;
+      }
+      
+      // Add the last statement if there is one
+      const lastStmt = currentStatement.trim();
+      if (lastStmt.length > 0) {
+        statements.push(lastStmt);
+      }
+      
+      return statements;
     };
 
     if (isProduction) {

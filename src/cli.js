@@ -10,22 +10,28 @@ import { migrateCommand } from './commands/migrate.js';
 import { statusCommand } from './commands/status.js';
 import { testCommand } from './commands/test.js';
 import { deleteCommand } from './commands/delete.js';
+import { openCommand } from './commands/open.js';
+import { logsCommand } from './commands/logs.js';
+import { dbCommand } from './commands/db.js';
 
 const program = new Command();
 
 program
   .name('bit2')
-  .description('Simple CLI tool to scaffold Astro webapps with libSQL/Turso database integration')
-  .version('0.9.0');
+  .description('∴ bit2 - Modern CLI tool for scaffolding Astro applications with libSQL/Turso and flexible deployment')
+  .version('0.9.0')
+  .addHelpText('after', '\n' +
+    'Repository: https://github.com/bitbonsai/bit2\n' +
+    'Issues:     https://github.com/bitbonsai/bit2/issues');
 
 program
   .command('new <project-name>')
-  .description('Create new Astro + libSQL project')
+  .description('Create new Astro + libSQL project (auto-installs deps & migrates DB)')
   .action(newCommand);
 
 program
   .command('dev')
-  .description('Start development server with Bun + local libSQL file')
+  .description('Start development server (port 4321, uses local dev.db)')
   .action(devCommand);
 
 program
@@ -35,21 +41,17 @@ program
 
 program
   .command('deploy')
-  .description('Automated deployment to Vercel with Turso database')
-  .option('--dry-run', 'Preview deployment without executing')
-  .option('--local', 'Use manual setup flow (original behavior)')
-  .option('--connect-git', 'Attempt to connect GitHub repo to Vercel project (requires VERCEL_TOKEN)')
-  .option('--save-token', 'Save VERCEL_TOKEN into .env.local for future CLI operations')
-  .action((options) => deployCommand(options));
+  .description('Deploy to production (first time: full setup, after: git push)')
+  .action(() => deployCommand());
 
 program
   .command('migrate')
-  .description('Run database migrations')
+  .description('Reset local database (useful after schema changes or to restore seed data)')
   .action(migrateCommand);
 
 program
   .command('status')
-  .description('Check project health and deployment status')
+  .description('Check project health, database, and deployment status')
   .action(statusCommand);
 
 program
@@ -59,9 +61,24 @@ program
 
 program
   .command('delete [project-name]')
-  .description('Delete project and all associated cloud resources')
+  .description('Delete project and all cloud resources (DB, repo, deployment)')
   .option('--force', 'Skip confirmation prompt')
   .action((projectName, options) => deleteCommand(projectName, options));
+
+program
+  .command('open')
+  .description('Open deployment dashboard in browser (Cloudflare/Vercel/Netlify)')
+  .action(openCommand);
+
+program
+  .command('logs')
+  .description('Show recent deployment logs (provider-specific)')
+  .action(logsCommand);
+
+program
+  .command('db [action]')
+  .description('Database management: info (default), shell, token, create')
+  .action(dbCommand);
 
 // Error handling
 program.on('command:*', () => {

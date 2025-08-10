@@ -15,8 +15,7 @@ export async function statusCommand() {
     { name: 'Database', check: checkDatabase },
     { name: 'Git Repository', check: checkGitRepo },
     { name: 'Turso Database', check: checkTursoDatabase },
-    { name: 'Vercel Deployment', check: checkVercelDeployment },
-    { name: 'Deployment Status', check: checkDeployment }
+    { name: 'Deployment Config', check: checkDeploymentConfig }
   ];
   
   for (const { name, check } of checks) {
@@ -47,8 +46,8 @@ export async function statusCommand() {
   console.log();
   console.log(chalk.cyan('🚀 Quick commands:'));
   console.log(chalk.gray('  • Local dev:'), chalk.white(`${chalk.bold('bit2 dev')} OR bun dev`));
-  console.log(chalk.gray('  • Full deployment:'), chalk.white(chalk.bold('bit2 deploy')));
-  console.log(chalk.gray('  • Preview deployment:'), chalk.white(chalk.bold('bit2 deploy --dry-run')));
+  console.log(chalk.gray('  • Database:'), chalk.white(`${chalk.bold('bit2 db')} info|shell|token`));
+  console.log(chalk.gray('  • Deployment:'), chalk.white(`${chalk.bold('bit2 deploy')} OR ${chalk.bold('bit2 open')}`));
   console.log();
 }
 
@@ -85,14 +84,19 @@ async function checkDependencies() {
   
   try {
     const packageJson = await fs.readJson('package.json');
-    const requiredDeps = ['astro', '@astrojs/vercel', '@libsql/client'];
+    const requiredDeps = ['astro', '@libsql/client'];
     const missing = requiredDeps.filter(dep => !packageJson.dependencies?.[dep]);
     
+    // Check for any Astro adapter
+    const hasAdapter = Object.keys({ ...packageJson.dependencies, ...packageJson.devDependencies })
+      .some(dep => dep.startsWith('@astrojs/') && ['cloudflare', 'vercel', 'netlify'].some(provider => dep.includes(provider)));
+    
     if (missing.length === 0) {
-      // Check if node_modules exists
       const hasNodeModules = await fs.pathExists('node_modules');
+      const adapterStatus = hasAdapter ? ' with deployment adapter' : '';
+      
       if (hasNodeModules) {
-        return { status: 'success', message: 'Dependencies installed' };
+        return { status: 'success', message: `Dependencies installed${adapterStatus}` };
       } else {
         return { status: 'warning', message: 'Dependencies need installation', details: ['Run: bun install'] };
       }
@@ -195,7 +199,7 @@ async function checkTursoDatabase() {
         message: 'Turso database exists',
         details: [
           chalk.yellow('Database URL: ') + chalk.cyan(dbUrl.trim()),
-          chalk.gray(`Use ${chalk.bold('`bit2 deploy`')} to get auth token for production`)
+          chalk.gray(`Use ${chalk.bold('bit2 db')} to get connection details`)
         ]
       };
     } catch (dbError) {
@@ -210,129 +214,129 @@ async function checkTursoDatabase() {
   }
 }
 
-async function checkVercelDeployment() {
+async function checkDeploymentConfig() {
+  const fs = await import('fs-extra');
+  
   try {
-    const fs = await import('fs-extra');
-    const packageJson = await fs.readJson('package.json');
-    const projectName = packageJson.name;
-    
-    // Check if Vercel CLI is available and authenticated
-    try {
-      await execAsync('vercel --version');
-      await execAsync('vercel whoami');
-    } catch (error) {
-      return { 
-        status: 'warning', 
-        message: 'Vercel not configured',
-        details: ['Run: vercel login']
-      };
-    }
-    
-    // Check if Vercel project exists and get deployment info (prefer JSON)
-    try {
-      const { stdout: jsonOut } = await execAsync('vercel ls --json | cat');
-      const list = JSON.parse(jsonOut);
-      const found = Array.isArray(list) ? list.find(p => p.name === projectName) : null;
-      if (found) {
-        let deploymentUrl = `https://${projectName}.vercel.app`;
-        try {
-          const { stdout: projJson } = await execAsync(`vercel ls ${projectName} --json | cat`);
-          const proj = JSON.parse(projJson);
-          if (proj?.deployments?.length) {
-            const latest = proj.deployments[0];
-            if (latest?.url) deploymentUrl = `https://${latest.url}`;
-          }
-        } catch {}
+    // Check if deployment config exists
+    if (await fs.pathExists('.env.bit2')) {
+      const deploymentConfig = await readDeploymentConfig('.env.bit2');
+      
+      if (deploymentConfig.provider && deploymentConfig.projectName) {
+        const { provider, projectName, createdAt, deploymentUrl } = deploymentConfig;
+        
+        // Generate dashboard URL
+        const dashboardUrl = generateDashboardUrl(provider, projectName);
+        
+        // Get last deploy info
+        const lastDeployInfo = await getLastDeployInfo(provider, projectName);
+        
+        const details = [
+          `${chalk.cyan('Project:')} ${projectName}`,
+          `${chalk.cyan('Provider:')} ${provider}`,
+          `${chalk.cyan('Dashboard:')} ${dashboardUrl}`,
+        ];
+        
+        if (createdAt) {
+          const createdDate = new Date(createdAt);
+          details.push(`${chalk.cyan('Created:')} ${createdDate.toLocaleDateString()}`);
+        }
+        
+        if (lastDeployInfo) {
+          details.push(`${chalk.cyan('Last Deploy:')} ${lastDeployInfo}`);
+        }
+        
+        details.push('');
+        details.push(`${chalk.gray('Commands:')} bit2 open | bit2 logs | bit2 db | bit2 deploy`);
+        
         return {
           status: 'success',
-          message: 'Deployed on Vercel',
-          details: [
-            `Live URL: ${chalk.underline.blue(deploymentUrl)}`,
-            `View deployments: vercel ls ${projectName}`,
-            `View logs: vercel logs ${projectName}`,
-            `Dashboard: https://vercel.com/dashboard`
-          ]
+          message: `Deployed on ${provider}`,
+          details
         };
       }
-      return {
-        status: 'warning',
-        message: 'No Vercel deployment found',
-        details: [`Run: ${chalk.bold('bit2 deploy')} to deploy to Vercel`]
-      };
-    } catch (error) {
-      // Fallback to plain parsing if JSON not supported
-      try {
-        const { stdout } = await execAsync('vercel ls | cat');
-        const projectExists = stdout.includes(projectName);
-        if (projectExists) {
-          return {
-            status: 'success',
-            message: 'Vercel project exists',
-            details: [
-              `Live URL: https://${projectName}.vercel.app`,
-              `Dashboard: https://vercel.com/dashboard`
-            ]
-          };
-        }
-      } catch {}
-      return {
-        status: 'warning',
-        message: 'Could not check Vercel status',
-        details: [`Run: ${chalk.bold('bit2 deploy')} OR setup manually at https://vercel.com`]
-      };
     }
+    
+    return {
+      status: 'warning',
+      message: 'No deployment configuration',
+      details: [`Run: ${chalk.bold('bit2 deploy')} to set up deployment`]
+    };
   } catch (error) {
-    return { status: 'error', message: 'Could not read project info' };
+    return { status: 'error', message: 'Could not check deployment config' };
   }
 }
 
-async function checkDeployment() {
+async function readDeploymentConfig(configPath) {
   try {
-    // Check if we have a GitHub repo
-    await execAsync('git remote get-url origin');
+    const fs = await import('fs-extra');
+    const content = await fs.readFile(configPath, 'utf8');
     
-    // Try to get the repo name
-    const { stdout: remoteUrl } = await execAsync('git remote get-url origin');
-    const repoMatch = remoteUrl.match(/github\.com[/:](.*?)\.git/);
+    const config = {};
+    const lines = content.split('\n');
     
-    if (repoMatch) {
-      const repoName = repoMatch[1];
-      
-      // Check git status for uncommitted changes
-      try {
-        const { stdout: gitStatus } = await execAsync('git status --porcelain');
-        if (gitStatus.trim()) {
-          return {
-            status: 'warning',
-            message: 'Uncommitted changes detected',
-            details: [
-              `GitHub repo: ${repoName}`,
-              'Commit changes before deployment',
-              'Run: git add . && git commit -m "Update"'
-            ]
-          };
+    for (const line of lines) {
+      if (line.startsWith('BIT2_')) {
+        const [key, ...valueParts] = line.split('=');
+        const value = valueParts.join('=');
+        const configKey = key.replace('BIT2_', '').toLowerCase();
+        
+        switch (configKey) {
+          case 'project_name':
+            config.projectName = value;
+            break;
+          case 'provider':
+            config.provider = value;
+            break;
+          case 'deployment_url':
+            config.deploymentUrl = value;
+            break;
+          case 'created_at':
+            config.createdAt = value;
+            break;
         }
-      } catch (error) {
-        // Git status failed, continue anyway
       }
-      
-      return { 
-        status: 'success', 
-        message: 'Ready for deployment',
-        details: [
-          `GitHub repo: ${repoName}`,
-          `Run: ${chalk.bold('bit2 deploy')} for automated deployment`,
-          `Or: ${chalk.bold('bit2 deploy --dry-run')} to preview`
-        ]
-      };
-    } else {
-      return { status: 'warning', message: 'Non-GitHub remote detected' };
     }
+    
+    return config;
   } catch (error) {
-    return { 
-      status: 'warning', 
-      message: 'Not ready for deployment',
-      details: [`Run: ${chalk.bold('bit2 deploy')} to set up deployment`]
-    };
+    return {};
   }
 }
+
+function generateDashboardUrl(provider, projectName) {
+  switch (provider.toLowerCase()) {
+    case 'cloudflare':
+      return `https://dash.cloudflare.com/pages/view/${projectName}`;
+    case 'vercel':
+      return `https://vercel.com/dashboard`;
+    case 'netlify':
+      return `https://app.netlify.com/sites/${projectName}`;
+    default:
+      return `https://${provider}.com/dashboard`;
+  }
+}
+
+
+async function getLastDeployInfo(provider, projectName) {
+  try {
+    // Check if there are any recent commits
+    const { stdout: gitLog } = await execAsync('git log --oneline -1');
+    const lastCommit = gitLog.trim();
+    
+    if (lastCommit) {
+      // Check if this commit has been pushed
+      try {
+        await execAsync('git log origin/main..HEAD --oneline');
+        return `${lastCommit.substring(0, 50)}... (not yet pushed)`;
+      } catch {
+        return `${lastCommit.substring(0, 50)}... (deployed)`;
+      }
+    }
+    
+    return 'No recent commits';
+  } catch {
+    return 'Unable to determine';
+  }
+}
+

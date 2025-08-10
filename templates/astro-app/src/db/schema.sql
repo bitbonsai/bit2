@@ -1,17 +1,14 @@
--- Users table
-CREATE TABLE IF NOT EXISTS users (
+-- Quotes table for Stoic wisdom
+CREATE TABLE IF NOT EXISTS quotes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  email TEXT UNIQUE NOT NULL,
+  quote TEXT NOT NULL,
+  author TEXT NOT NULL,
+  source TEXT,
+  category TEXT,
+  notes TEXT,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Posts table (example content)
-CREATE TABLE IF NOT EXISTS posts (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  title TEXT NOT NULL,
-  content TEXT NOT NULL,
-  user_id INTEGER NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users (id)
-);
+-- Create indexes for better query performance
+CREATE INDEX IF NOT EXISTS idx_quotes_author ON quotes(author);
+CREATE INDEX IF NOT EXISTS idx_quotes_category ON quotes(category);

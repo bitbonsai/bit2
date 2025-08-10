@@ -103,6 +103,20 @@ The deploy command checks for:
 - Output directory: `dist` (detected automatically)
 - Framework preset: Astro (detected automatically)
 
+### Cloudflare Pages Deployment Configuration
+For manual Cloudflare Pages deployment:
+1. Navigate to Cloudflare Pages dashboard
+2. Select "Import an existing Git repository"
+3. Choose your repository and select the main branch
+4. Configure build settings:
+   - **Framework preset**: Astro
+   - **Build command**: `bun run build`
+   - **Build output directory**: `dist`
+5. Add environment variables:
+   - `TURSO_DATABASE_URL`: Your Turso database URL
+   - `TURSO_AUTH_TOKEN`: Your Turso authentication token
+6. Deploy the project
+
 ## Testing New Features
 
 Simplified workflow since auto-setup was implemented:

@@ -1,5 +1,8 @@
 ---
-import Layout from '../components/Layout.astro'
+import Layout from '@layouts/Layout.astro'
+
+// bit2 version (replaced during project creation)
+const version = 'BIT2_VERSION_PLACEHOLDER';
 ---
 
 <Layout title="About - bit2">
@@ -14,7 +17,7 @@ import Layout from '../components/Layout.astro'
       <p class="hero-subtitle">The modern web stack for building fast, content-focused applications.</p>
       <div class="version-badge">
         <span class="version-label">Built with bit2</span>
-        <span class="version-value">v0.9.0</span>
+        <span class="version-value">v{version}</span>
       </div>
     </header>
 
@@ -43,8 +46,8 @@ import Layout from '../components/Layout.astro'
         <div class="tech-card">
           <div class="tech-icon">☁️</div>
           <div class="tech-details">
-            <h3>Vercel</h3>
-            <p>Fast, secure hosting with first-class Astro support, previews, and edge runtimes</p>
+            <h3>Flexible Deployment</h3>
+            <p>Deploy to Cloudflare Pages, Vercel, or Netlify - your choice of platform</p>
           </div>
         </div>
 
@@ -89,7 +92,7 @@ import Layout from '../components/Layout.astro'
               <li>Global edge replication</li>
               <li>Sub-millisecond latency</li>
               <li>Automatic scaling</li>
-              <li>Zero-downtime deployments</li>
+              <li>Provider-agnostic deployment</li>
             </ul>
           </div>
         </div>
@@ -135,27 +138,59 @@ import Layout from '../components/Layout.astro'
 </Layout>
 
 <style>
+  :root {
+    --color-primary: #fcd34d;
+    --color-primary-darker: #fbbf24;
+    --color-secondary: #273041;
+    --color-background: #1a2436;
+    --color-text-primary: #ffffff;
+    --color-text-secondary: #e5e7eb;
+    --color-text-muted: #9ca3af;
+    
+    /* Spacing variables */
+    --space-xs: 0.25rem;
+    --space-sm: 0.5rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2rem;
+    --space-2xl: 3rem;
+    --space-3xl: 4rem;
+    --space-4xl: 6rem;
+    
+    /* Size variables */
+    --size-xs: 0.125rem;
+    --size-sm: 0.25rem;
+    --size-md: 0.5rem;
+    --size-lg: 0.75rem;
+    --size-xl: 1rem;
+    --size-2xl: 1.25rem;
+    --size-3xl: 1.5rem;
+    --size-4xl: 2rem;
+    --size-5xl: 3rem;
+    --size-6xl: 5rem;
+  }
+
   .container {
-    max-width: 1280px;
+    max-width: 80rem;
     margin: 0 auto;
-    padding: 4rem 2rem;
+    padding: var(--space-3xl) var(--space-xl);
   }
 
   /* Hero Section */
   .hero {
     text-align: center;
-    margin-bottom: 6rem;
+    margin-bottom: var(--space-4xl);
   }
 
   .hero-logo {
-    margin-bottom: 2rem;
+    margin-bottom: var(--space-xl);
   }
 
   .logo {
-    width: 80px;
-    height: 80px;
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    width: var(--size-6xl);
+    height: var(--size-6xl);
+    border-radius: var(--space-md);
+    box-shadow: 0 0.625rem 1.875rem rgba(0, 0, 0, 0.3);
     transition: transform 0.2s ease;
   }
 
@@ -167,8 +202,8 @@ import Layout from '../components/Layout.astro'
     font-size: clamp(3rem, 8vw, 6rem);
     font-weight: 800;
     line-height: 1.1;
-    margin: 0 0 1.5rem 0;
-    color: #fff;
+    margin: 0 0 var(--space-lg) 0;
+    color: var(--color-text-primary);
   }
 
   .brand {
@@ -180,9 +215,9 @@ import Layout from '../components/Layout.astro'
 
   .hero-subtitle {
     font-size: 1.375rem;
-    color: #9ca3af;
-    margin: 0 0 2rem 0;
-    max-width: 640px;
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-xl) 0;
+    max-width: 40rem;
     margin-left: auto;
     margin-right: auto;
     line-height: 1.5;
@@ -191,44 +226,44 @@ import Layout from '../components/Layout.astro'
   .version-badge {
     display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: rgba(251, 191, 36, 0.1);
-    border: 1px solid rgba(251, 191, 36, 0.3);
-    border-radius: 8px;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-secondary);
+    border: 1px solid rgba(39, 48, 65, 0.5);
+    border-radius: var(--size-md);
     font-size: 0.875rem;
   }
 
   .version-label {
-    color: #9ca3af;
+    color: var(--color-text-muted);
   }
 
   .version-value {
-    color: #fbbf24;
+    color: var(--color-primary);
     font-weight: 600;
   }
 
   /* Content Sections */
   .content-section {
-    margin-bottom: 6rem;
+    margin-bottom: var(--space-4xl);
   }
 
   .section-header {
-    margin-bottom: 2rem;
+    margin-bottom: var(--space-xl);
   }
 
   .section-header h2 {
     font-size: 2.5rem;
     font-weight: 700;
-    color: #fff;
+    color: var(--color-text-primary);
     margin: 0;
   }
 
   /* Tech Grid */
   .tech-grid {
     display: grid;
-    gap: 1.5rem;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: var(--space-lg);
+    grid-template-columns: repeat(auto-fit, minmax(17.5rem, 1fr));
   }
 
   .tech-card {
@@ -236,8 +271,8 @@ import Layout from '../components/Layout.astro'
     align-items: flex-start;
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 2rem;
+    border-radius: var(--size-lg);
+    padding: var(--space-xl);
     transition: all 0.2s ease;
   }
 
@@ -248,36 +283,36 @@ import Layout from '../components/Layout.astro'
   }
 
   .tech-icon {
-    font-size: 2rem;
-    margin-right: 1.5rem;
-    margin-top: 0.25rem;
+    font-size: var(--size-4xl);
+    margin-right: var(--space-lg);
+    margin-top: var(--space-xs);
   }
 
   .tech-details h3 {
-    margin: 0 0 0.5rem 0;
+    margin: 0 0 var(--space-sm) 0;
     font-size: 1.25rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--color-text-primary);
   }
 
   .tech-details p {
     margin: 0;
-    color: #9ca3af;
+    color: var(--color-text-muted);
     line-height: 1.6;
   }
 
   /* Workflow Grid */
   .workflow-grid {
     display: grid;
-    gap: 2rem;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: var(--space-xl);
+    grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
   }
 
   .workflow-card {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 2rem;
+    border-radius: var(--size-lg);
+    padding: var(--space-xl);
     position: relative;
     transition: all 0.2s ease;
   }
@@ -294,10 +329,10 @@ import Layout from '../components/Layout.astro'
 
   .workflow-badge {
     position: absolute;
-    top: -12px;
-    left: 2rem;
-    padding: 0.375rem 0.75rem;
-    border-radius: 6px;
+    top: -0.75rem;
+    left: var(--space-xl);
+    padding: var(--space-sm) var(--size-lg);
+    border-radius: var(--space-sm);
     font-size: 0.75rem;
     font-weight: 700;
     color: white;
@@ -312,42 +347,42 @@ import Layout from '../components/Layout.astro'
   }
 
   .workflow-content h3 {
-    margin: 0 0 1rem 0;
+    margin: 0 0 var(--space-md) 0;
     font-size: 1.375rem;
     font-weight: 600;
-    color: #fff;
+    color: var(--color-text-primary);
   }
 
   .workflow-content p {
-    margin: 0 0 1rem 0;
-    color: #9ca3af;
+    margin: 0 0 var(--space-md) 0;
+    color: var(--color-text-muted);
     line-height: 1.6;
   }
 
   .workflow-content ul {
     margin: 0;
-    padding-left: 1.25rem;
-    color: #9ca3af;
+    padding-left: var(--size-2xl);
+    color: var(--color-text-muted);
   }
 
   .workflow-content li {
-    margin-bottom: 0.5rem;
+    margin-bottom: var(--space-sm);
   }
 
   /* Steps */
   .steps {
     margin: 0;
-    padding-left: 1.25rem;
+    padding-left: var(--size-2xl);
   }
 
   .step {
-    margin-bottom: 1.25rem;
+    margin-bottom: var(--size-2xl);
   }
 
   .step-title {
-    color: #9ca3af;
+    color: var(--color-text-muted);
     font-size: 0.95rem;
-    margin-bottom: 0.5rem;
+    margin-bottom: var(--space-sm);
   }
 
   .step-code {
@@ -358,41 +393,44 @@ import Layout from '../components/Layout.astro'
 
   .step-code code {
     display: inline-block;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    padding: 0.75rem 1rem;
-    color: #e5e7eb;
+    background-color: var(--color-background);
+    color: #e1e4e8;
+    overflow-x: auto;
+    border-radius: var(--size-md);
+    padding: var(--size-lg) var(--space-md);
     font-family: 'Courier New', monospace;
     font-size: 0.95rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
   code {
-    background: rgba(251, 191, 36, 0.2);
-    color: #fbbf24;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    font-family: 'Courier New', monospace;
+    background: var(--color-secondary);
+    color: var(--color-primary);
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--size-sm);
+    border: 1px solid rgba(39, 48, 65, 0.6);
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', 'Courier New', monospace;
     font-size: 0.875rem;
-    font-weight: 500;
+    font-weight: 600;
+    box-shadow: 0 0.0625rem 0.1875rem rgba(0, 0, 0, 0.2);
   }
 
   /* Navigation Footer */
   .nav-footer {
     text-align: center;
-    margin-top: 4rem;
+    margin-top: var(--space-3xl);
   }
 
   .nav-link {
     display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--size-lg);
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 1rem 1.5rem;
+    border-radius: var(--size-lg);
+    padding: var(--space-md) var(--space-lg);
     text-decoration: none;
-    color: #fff;
+    color: var(--color-text-primary);
     font-weight: 500;
     transition: all 0.2s ease;
   }
@@ -409,25 +447,25 @@ import Layout from '../components/Layout.astro'
   }
 
   .nav-link:hover .nav-arrow {
-    transform: translateX(-4px);
+    transform: translateX(-0.25rem);
   }
 
   /* Responsive Design */
   @media (max-width: 768px) {
     .container {
-      padding: 2rem 1rem;
+      padding: var(--space-xl) var(--space-md);
     }
 
     .hero {
-      margin-bottom: 4rem;
+      margin-bottom: var(--space-3xl);
     }
 
     .content-section {
-      margin-bottom: 4rem;
+      margin-bottom: var(--space-3xl);
     }
 
     .section-header h2 {
-      font-size: 2rem;
+      font-size: var(--size-4xl);
     }
 
     .tech-grid,
@@ -437,11 +475,11 @@ import Layout from '../components/Layout.astro'
 
     .tech-card,
     .workflow-card {
-      padding: 1.5rem;
+      padding: var(--space-lg);
     }
 
     .workflow-badge {
-      left: 1.5rem;
+      left: var(--space-lg);
     }
   }
 </style>

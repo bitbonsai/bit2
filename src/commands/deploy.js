@@ -3,188 +3,76 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { TimedSpinner } from '../utils/spinner.js';
 import readline from 'readline';
+import path from 'path';
 
 const execAsync = promisify(exec);
 
 export async function deployCommand(options = {}) {
-  const { dryRun, local } = options;
-  
-  // Resolve first-deploy defaults
-  const fs = await import('fs-extra');
-  const isFirstDeploy = !(await fs.pathExists('.env.bit2'));
-  const hasVercelToken = Boolean(process.env.VERCEL_TOKEN);
-  const resolvedConnectGit = options.connectGit ?? (isFirstDeploy && hasVercelToken);
-  const resolvedSaveToken = options.saveToken ?? (isFirstDeploy && hasVercelToken);
-  
-  // Handle dry run preview
-  if (dryRun) {
-    return showDeploymentPreview({ connectGit: resolvedConnectGit, saveToken: resolvedSaveToken, isFirstDeploy });
-  }
-  
-  // Default: Full automation
-  return deployAutomated({ connectGit: resolvedConnectGit, saveToken: resolvedSaveToken, isFirstDeploy });
-}
-
-async function showDeploymentPreview({ connectGit, saveToken, isFirstDeploy } = {}) {
-  console.log(chalk.bold.blue('DEPLOYMENT PREVIEW'));
-  console.log();
-  
-  let projectName;
   try {
+    // Check if this is a subsequent deployment first
     const fs = await import('fs-extra');
-    const packageJson = await fs.readJson('./package.json');
-    projectName = packageJson.name;
-  } catch (error) {
-    console.log(chalk.red('❌ No package.json found. Run this command in your project root.'));
-    process.exit(1);
-  }
-  
-  console.log(chalk.cyan('📋 Deployment Plan:'));
-  console.log(chalk.gray('  ✓ Validate project structure and dependencies'));
-  console.log(chalk.gray('  ✓ Check authentication (Turso, GitHub, Vercel)'));
-  if (isFirstDeploy) {
-    console.log(chalk.gray(`  ✓ Create Turso database: ${chalk.yellow(projectName)}`));
-    console.log(chalk.gray('  ✓ Initialize database schema and seed (production)'));
-    console.log(chalk.gray(`  ✓ Create GitHub repository: ${chalk.yellow(`username/${projectName}`)}`));
-    if (connectGit) {
-      console.log(chalk.gray('  ✓ Connect GitHub repo to Vercel project (via API)'));
+    const isFirstDeploy = !await fs.pathExists('.env.bit2');
+    
+    if (!isFirstDeploy) {
+      // This is a subsequent deployment - check git status and push
+      return await handleSubsequentDeploy();
     }
-    console.log(chalk.gray('  ✓ Set environment variables (TURSO_DATABASE_URL, TURSO_AUTH_TOKEN)'));
-    if (saveToken) {
-      console.log(chalk.gray('  ✓ Save VERCEL_TOKEN to .env.local'));
-    }
-    console.log(chalk.gray(`  ✓ Live URL: ${chalk.yellow(`https://${projectName}.vercel.app`)}`));
-  } else {
-    console.log(chalk.gray('  ✓ Check for uncommitted changes'));
-    console.log(chalk.gray('  ✓ Push latest commits to GitHub (Vercel auto-deploy)'));
-  }
-  console.log();
-  
-  console.log(chalk.yellow('💡 Estimated time: 1-2 minutes'));
-  console.log();
-  console.log(chalk.cyan('To proceed with deployment:'));
-  console.log(chalk.gray('  bit2 deploy'));
-  console.log();
-}
-
-async function deployAutomated({ connectGit, saveToken, isFirstDeploy } = {}) {
-  console.log(`${chalk.yellow('∴')} Starting automated deployment...`);
-  console.log();
-  
-  let spinner = new TimedSpinner('Validating project and dependencies');
-  
-  try {
-    // Validate project structure
-    await validateProject();
+    
+    // First deployment - show setup messages
+    console.log(`${chalk.yellow('∴')} Starting deployment setup...`);
+    console.log();
+    
+    let spinner = new TimedSpinner('Validating project');
+    
+    // 1. Validate project structure
+    const projectInfo = await validateProject();
     spinner.succeed('Project validation complete');
     
-    // Check prerequisites
-    spinner = new TimedSpinner('Checking prerequisites and authentication');
-    await checkPrerequisites();
-    spinner.succeed('Prerequisites and authentication verified');
+    // 3. Check for existing adapter (first deploy only)
+    spinner = new TimedSpinner('Checking existing configuration');
+    const existingAdapter = await detectExistingAdapter();
+    spinner.succeed('Configuration check complete');
     
-    // Get project info
-    const fs = await import('fs-extra');
-    const packageJson = await fs.readJson('./package.json');
-    const projectName = packageJson.name;
-    
-    // Optionally save VERCEL_TOKEN to project .env.local (ignored by git)
-    if (saveToken && process.env.VERCEL_TOKEN) {
-      const fs = await import('fs-extra');
-      try {
-        const existing = (await fs.pathExists('.env.local')) ? await fs.readFile('.env.local', 'utf8') : '';
-        const lines = existing.split('\n').filter(Boolean).filter(l => !l.startsWith('VERCEL_TOKEN='));
-        lines.push(`VERCEL_TOKEN=${process.env.VERCEL_TOKEN}`);
-        await fs.writeFile('.env.local', lines.join('\n') + '\n');
-        console.log(chalk.gray('  → Saved VERCEL_TOKEN to .env.local'));
-      } catch {
-        console.log(chalk.yellow('  ⚠ Could not write .env.local to save VERCEL_TOKEN'));
-      }
-    }
-
-    let dbInfo = { databaseUrl: undefined, authToken: undefined };
-    let repoInfo = { githubUser: undefined, repoName: projectName };
-    if (isFirstDeploy) {
-      // Setup Turso database (create + init schema/seed)
-      spinner = new TimedSpinner('Setting up Turso database');
-      dbInfo = await setupTursoDatabase(projectName);
-      spinner.succeed('Turso database setup complete');
-
-      // Setup GitHub repository
-      spinner = new TimedSpinner('Creating GitHub repository');
-      repoInfo = await setupGitHubRepository(projectName);
-      spinner.succeed('GitHub repository created and pushed');
+    // 3. Provider selection
+    let provider;
+    if (existingAdapter) {
+      console.log(chalk.yellow(`ℹ Detected existing adapter: ${existingAdapter}`));
+      const keepExisting = await promptKeepExisting(existingAdapter);
+      provider = keepExisting ? existingAdapter : await selectProvider();
     } else {
-      // Fast path: ensure clean working tree, then push to trigger Vercel
-      spinner = new TimedSpinner('Checking git status');
-      try {
-        const { stdout } = await execAsync('git status --porcelain');
-        if (stdout.trim()) {
-          spinner.fail('Uncommitted changes');
-          const err = new Error('Uncommitted changes detected');
-          err.recoverySteps = ['Run: git add .', 'Run: git commit -m "Update"', 'Re-run: bit2 deploy'];
-          throw err;
-        }
-        spinner.succeed('Working tree clean');
-      } catch (e) {
-        if (!e.recoverySteps) {
-          spinner.fail('Git status check failed');
-        }
-        throw e;
-      }
-
-      spinner = new TimedSpinner('Pushing latest commits');
-      try {
-        await execAsync('git push');
-        spinner.succeed('Push complete - Vercel will auto-deploy');
-        console.log();
-        console.log(chalk.cyan('Vercel auto-deploy triggered from Git push.'));
-        console.log(chalk.gray('View deployments: vercel ls'));
-        console.log(chalk.gray('Dashboard: https://vercel.com/dashboard'));
-        return; // End fast path
-      } catch (e) {
-        spinner.warn('Could not push changes; continuing with manual deploy');
-      }
+      provider = await selectProvider();
     }
     
-    // Build project locally first
-    spinner = new TimedSpinner('Building project locally');
-    await buildProject();
-    spinner.succeed('Local build successful');
-    
-    // Deploy to Vercel
-    spinner = new TimedSpinner('Deploying to Vercel');
-    const deployInfo = await deployToVercel(projectName, repoInfo, dbInfo, { connectGit, isFirstDeploy });
-    spinner.succeed('Vercel deployment complete');
-    
-    // Save deployment state to .env for delete command
-    spinner = new TimedSpinner('Saving deployment configuration');
-    try {
-      const fs = await import('fs-extra');
-      const envContent = `# bit2 deployment configuration
-BIT2_PROJECT_NAME=${projectName}
-BIT2_TURSO_DATABASE=${projectName}
-BIT2_GITHUB_REPO=${repoInfo.githubUser}/${projectName}
-BIT2_VERCEL_PROJECT=${projectName}
-BIT2_DEPLOYMENT_URL=${deployInfo.url}
-BIT2_CREATED_AT=${new Date().toISOString()}
-`;
-      await fs.writeFile('.env.bit2', envContent);
-      spinner.succeed('Configuration saved');
-    } catch (error) {
-      spinner.warn('Could not save deployment configuration');
+    // 4. Install/update adapter if needed
+    if (provider !== existingAdapter) {
+      spinner = new TimedSpinner(`Installing ${provider} adapter`);
+      await installAdapter(provider);
+      spinner.succeed(`${provider} adapter installed`);
+    } else {
+      console.log(chalk.green(`✓ Using existing ${provider} adapter`));
     }
     
-    // Success message
-    displaySuccessMessage(projectName, deployInfo, dbInfo);
+    // 5. Setup Turso database
+    spinner = new TimedSpinner('Setting up Turso database');
+    const dbInfo = await setupTursoDatabase(projectInfo.name);
+    spinner.succeed('Turso database setup complete');
+    
+    // 6. Check Git environment and offer repo creation
+    const gitStatus = await checkGitEnvironment(projectInfo.name);
+    
+    // 7. Show deployment guide
+    await showDeploymentGuide(provider, dbInfo, gitStatus);
+    
+    // 8. Save deployment info
+    await saveDeploymentInfo(projectInfo.name, provider, dbInfo);
     
   } catch (error) {
     if (spinner) {
-      spinner.fail(`Deployment failed: ${error.message}`);
+      spinner.fail(`Deployment setup failed: ${error.message}`);
     }
     
     console.log();
-    console.log(chalk.red('❌ Automated deployment failed'));
+    console.log(chalk.red('❌ Deployment setup failed'));
     console.log();
     
     if (error.recoverySteps) {
@@ -217,86 +105,195 @@ async function validateProject() {
     throw new Error('Missing src/db/schema.sql. This doesn\'t appear to be a bit2 project.');
   }
   
-  // Check git status
+  // Get project info
+  const packageJson = await fs.readJson('./package.json');
+  
+  return {
+    name: packageJson.name,
+    version: packageJson.version
+  };
+}
+
+async function detectExistingAdapter() {
   try {
-    const { stdout } = await execAsync('git status --porcelain');
-    if (stdout.trim()) {
-      console.log(chalk.yellow('⚠️  You have uncommitted changes. Consider committing them first.'));
-    }
-  } catch (error) {
-    // Not a git repo yet, that's fine
+    const fs = await import('fs-extra');
+    const packageJson = await fs.readJson('./package.json');
+    const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+    
+    if (deps['@astrojs/cloudflare']) return 'cloudflare';
+    if (deps['@astrojs/vercel']) return 'vercel';  
+    if (deps['@astrojs/netlify']) return 'netlify';
+    
+    return null;
+  } catch {
+    return null;
   }
 }
 
-async function checkPrerequisites() {
-  const commands = [
-    { 
-      cmd: 'bun', 
-      args: ['--version'], 
-      name: 'Bun',
-      install: 'curl -fsSL https://bun.sh/install | bash'
-    },
-    { 
-      cmd: 'turso', 
-      args: ['--version'], 
-      name: 'Turso CLI',
-      install: 'curl -sSfL https://get.tur.so/install.sh | bash'
-    },
-    { 
-      cmd: 'gh', 
-      args: ['--version'], 
-      name: 'GitHub CLI',
-      install: 'https://cli.github.com/manual/installation'
-    },
-    {
-      cmd: 'vercel',
-      args: ['--version'],
-      name: 'Vercel CLI',
-      install: 'npm i -g vercel'
-    }
-  ];
+async function promptKeepExisting(adapter) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
   
-  for (const command of commands) {
-    try {
-      await execAsync(`${command.cmd} ${command.args.join(' ')}`);
-    } catch (error) {
-      const err = new Error(`${command.name} is required for deployment`);
-      err.recoverySteps = [`Install ${command.name}: ${command.install}`];
-      throw err;
+  return new Promise((resolve) => {
+    rl.question(chalk.cyan(`Keep existing ${adapter} adapter? (Y/n): `), (answer) => {
+      rl.close();
+      resolve(!answer || answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes');
+    });
+  });
+}
+
+async function selectProvider() {
+  console.log();
+  console.log(chalk.cyan('Choose your deployment provider:'));
+  console.log(chalk.white('  [1] Cloudflare Pages'));
+  console.log(chalk.white('  [2] Vercel'));
+  console.log(chalk.white('  [3] Netlify'));
+  console.log();
+  
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  
+  return new Promise((resolve) => {
+    const askProvider = () => {
+      rl.question(chalk.cyan('Enter your choice (1-3): '), (answer) => {
+        switch (answer.trim()) {
+          case '1':
+            rl.close();
+            resolve('cloudflare');
+            break;
+          case '2':
+            rl.close();
+            resolve('vercel');
+            break;
+          case '3':
+            rl.close();
+            resolve('netlify');
+            break;
+          default:
+            console.log(chalk.red('Please enter 1, 2, or 3'));
+            askProvider();
+        }
+      });
+    };
+    askProvider();
+  });
+}
+
+async function installAdapter(provider) {
+  const adapters = {
+    cloudflare: '@astrojs/cloudflare',
+    vercel: '@astrojs/vercel/serverless',
+    netlify: '@astrojs/netlify'
+  };
+  
+  const fs = await import('fs-extra');
+  
+  // Install adapter package
+  await execAsync(`bun add ${adapters[provider]}`);
+  
+  // Update astro.config.mjs
+  await updateAstroConfig(provider);
+}
+
+async function updateAstroConfig(provider) {
+  const fs = await import('fs-extra');
+  const configPath = './astro.config.mjs';
+  
+  const configs = {
+    cloudflare: `import { defineConfig } from 'astro/config';
+import cloudflare from '@astrojs/cloudflare';
+
+// https://astro.build/config
+export default defineConfig({
+  output: 'server',
+  adapter: cloudflare(),
+  vite: {
+    resolve: {
+      alias: {
+        '@components': '/src/components',
+        '@layouts': '/src/layouts',
+        '@lib': '/src/lib',
+        '@db': '/src/db',
+        '@content': '/src/content'
+      }
     }
   }
-  
-  // Check authentications
-  const authChecks = [
-    {
-      cmd: 'turso auth whoami',
-      name: 'Turso',
-      login: 'turso auth signup'
-    },
-    {
-      cmd: 'gh auth status',
-      name: 'GitHub',
-      login: 'gh auth login'
-    },
-    {
-      cmd: 'vercel whoami',
-      name: 'Vercel', 
-      login: 'vercel login'
-    }
-  ];
-  
-  for (const auth of authChecks) {
-    try {
-      await execAsync(auth.cmd);
-    } catch (error) {
-      const err = new Error(`${auth.name} authentication required`);
-      err.recoverySteps = [`Login to ${auth.name}: ${auth.login}`];
-      throw err;
+});`,
+    vercel: `import { defineConfig } from 'astro/config';
+import vercel from '@astrojs/vercel/serverless';
+
+// https://astro.build/config  
+export default defineConfig({
+  output: 'server',
+  adapter: vercel(),
+  vite: {
+    resolve: {
+      alias: {
+        '@components': '/src/components',
+        '@layouts': '/src/layouts',
+        '@lib': '/src/lib',
+        '@db': '/src/db',
+        '@content': '/src/content'
+      }
     }
   }
+});`,
+    netlify: `import { defineConfig } from 'astro/config';
+import netlify from '@astrojs/netlify';
+
+// https://astro.build/config
+export default defineConfig({
+  output: 'server',
+  adapter: netlify(),
+  vite: {
+    resolve: {
+      alias: {
+        '@components': '/src/components',
+        '@layouts': '/src/layouts',
+        '@lib': '/src/lib',
+        '@db': '/src/db',
+        '@content': '/src/content'
+      }
+    }
+  }
+});`
+  };
+  
+  await fs.writeFile(configPath, configs[provider]);
 }
 
 async function setupTursoDatabase(projectName) {
+  // Check if Turso CLI is available
+  try {
+    await execAsync('turso --version');
+  } catch (error) {
+    const err = new Error('Turso CLI is required for database setup');
+    err.recoverySteps = [
+      'Install Turso CLI: curl -sSfL https://get.tur.so/install.sh | bash',
+      'Restart your terminal',
+      'Run: turso auth signup',
+      'Re-run: bit2 deploy'
+    ];
+    throw err;
+  }
+  
+  // Check authentication
+  try {
+    await execAsync('turso auth whoami');
+  } catch (error) {
+    const err = new Error('Turso authentication required');
+    err.recoverySteps = [
+      'Run: turso auth signup',
+      'Follow the signup process',
+      'Re-run: bit2 deploy'
+    ];
+    throw err;
+  }
+  
   // Check if database already exists
   let databaseExists = false;
   try {
@@ -304,17 +301,8 @@ async function setupTursoDatabase(projectName) {
     databaseExists = true;
     console.log(chalk.yellow(`  ℹ Using existing Turso database: ${projectName}`));
   } catch (error) {
-    try {
-      // Database doesn't exist, create it
-      await execAsync(`turso db create ${projectName}`);
-    } catch (createError) {
-      if (createError.message.includes('not logged in') || createError.message.includes('authentication')) {
-        const err = new Error('Turso authentication failed');
-        err.recoverySteps = ['Run: turso auth signup'];
-        throw err;
-      }
-      throw createError;
-    }
+    // Database doesn't exist, create it
+    await execAsync(`turso db create ${projectName}`);
   }
   
   // Get database URL
@@ -325,247 +313,374 @@ async function setupTursoDatabase(projectName) {
   const { stdout: tokenOutput } = await execAsync(`turso db tokens create ${projectName}`);
   const authToken = tokenOutput.trim();
   
-  // Run migrations
-  const fs = await import('fs-extra');
-  if (await fs.pathExists('./src/db/schema.sql')) {
-    const schema = await fs.readFile('./src/db/schema.sql', 'utf8');
-    
-    // Split SQL into individual statements and clean them
-    const statements = schema
-      .split('\\n')
-      .filter(line => !line.trim().startsWith('--') && line.trim() !== '')
-      .join('\\n')
-      .split(';')
-      .map(stmt => stmt.trim())
-      .filter(stmt => stmt.length > 0);
-    
-    // Execute each statement separately
-    for (const statement of statements) {
-      const cleanStatement = statement.replace(/'/g, `'"'"`);
-      await execAsync(`turso db shell ${projectName} '${cleanStatement};'`);
+  // Run migrations if database is new
+  if (!databaseExists) {
+    const fs = await import('fs-extra');
+    if (await fs.pathExists('./src/db/schema.sql')) {
+      const schema = await fs.readFile('./src/db/schema.sql', 'utf8');
+      const seed = await fs.pathExists('./src/db/seed.sql') 
+        ? await fs.readFile('./src/db/seed.sql', 'utf8') 
+        : '';
+      
+      // Split SQL into individual statements and execute
+      // This function properly handles semicolons within quoted strings
+      const splitSqlStatements = (sql) => {
+        const lines = sql.split('\n');
+        const cleanLines = lines.filter(line => !line.trim().startsWith('--') && line.trim() !== '');
+        const cleanSql = cleanLines.join('\n');
+        
+        const statements = [];
+        let currentStatement = '';
+        let inSingleQuotes = false;
+        let inDoubleQuotes = false;
+        let i = 0;
+        
+        while (i < cleanSql.length) {
+          const char = cleanSql[i];
+          
+          if (char === "'" && !inDoubleQuotes) {
+            // Check for escaped single quotes
+            if (i + 1 < cleanSql.length && cleanSql[i + 1] === "'") {
+              currentStatement += "''";
+              i += 2;
+              continue;
+            }
+            inSingleQuotes = !inSingleQuotes;
+          } else if (char === '"' && !inSingleQuotes) {
+            inDoubleQuotes = !inDoubleQuotes;
+          } else if (char === ';' && !inSingleQuotes && !inDoubleQuotes) {
+            // End of statement
+            const stmt = currentStatement.trim();
+            if (stmt.length > 0) {
+              statements.push(stmt);
+            }
+            currentStatement = '';
+            i++;
+            continue;
+          }
+          
+          currentStatement += char;
+          i++;
+        }
+        
+        // Add the last statement if there is one
+        const lastStmt = currentStatement.trim();
+        if (lastStmt.length > 0) {
+          statements.push(lastStmt);
+        }
+        
+        return statements;
+      };
+      
+      const statements = splitSqlStatements([schema, seed].join('\n'));
+      
+      for (const statement of statements) {
+        const cleanStatement = statement.replace(/'/g, `'"'"'`);
+        await execAsync(`turso db shell ${projectName} '${cleanStatement};'`);
+      }
     }
   }
   
   return { databaseUrl, authToken };
 }
 
-async function setupGitHubRepository(projectName) {
-  // Initialize git if not already done
-  let isGitRepo = false;
+async function checkGitEnvironment(projectName) {
+  const status = {
+    hasRepo: false,
+    hasRemote: false,
+    canCreateRepo: false,
+    platform: null,
+    remoteUrl: null
+  };
+  
+  // Check if git repo exists
   try {
     await execAsync('git status');
-    isGitRepo = true;
-  } catch (error) {
+    status.hasRepo = true;
+  } catch {
+    // Initialize git repo
+    console.log(chalk.gray('  ℹ Initializing git repository...'));
     await execAsync('git init');
     await execAsync('git add .');
     await execAsync('git commit -m "Initial commit"');
+    status.hasRepo = true;
   }
   
-  // Get GitHub username
-  const { stdout: userOutput } = await execAsync('gh api user --jq .login');
-  const githubUser = userOutput.trim();
-  
-  // Check if GitHub repo already exists
-  let repoExists = false;
+  // Check for remote
   try {
-    await execAsync(`gh repo view ${projectName}`);
-    repoExists = true;
-  } catch (error) {
-    // Repo doesn't exist, we'll create it
-  }
-  
-  if (repoExists) {
-    console.log(chalk.yellow(`  ℹ GitHub repository already exists: ${projectName}`));
+    const { stdout } = await execAsync('git remote get-url origin');
+    status.hasRemote = true;
+    status.remoteUrl = stdout.trim();
+  } catch {
+    // No remote, check for CLI tools
     
-    // Check if remote is set
+    // Check GitHub CLI
     try {
-      await execAsync('git remote get-url origin');
-      // Remote exists, just push
-      console.log(chalk.gray('  → Pushing latest changes...'));
-      await execAsync('git push -u origin main').catch(() => {
-        // Try master if main doesn't work
-        return execAsync('git push -u origin master');
-      });
-    } catch (error) {
-      // Set remote and push
-      console.log(chalk.gray('  → Setting remote and pushing...'));
-      await execAsync(`git remote add origin https://github.com/${githubUser}/${projectName}.git`);
-      await execAsync('git push -u origin main').catch(() => {
-        return execAsync('git push -u origin master');
-      });
-    }
-  } else {
-    // Create new GitHub repository
-    await execAsync(`gh repo create ${projectName} --private --source=. --remote=origin --push`);
-  }
-  
-  return { githubUser, repoName: projectName };
-}
-
-async function buildProject() {
-  try {
-    await execAsync('bun run build', { timeout: 120000 }); // 2 minute timeout
-  } catch (error) {
-    const err = new Error('Local build failed');
-    err.recoverySteps = [
-      'Check your code for errors',
-      'Run: bun run build locally to see detailed errors',
-      'Ensure all dependencies are installed: bun install'
-    ];
-    throw err;
-  }
-}
-
-async function deployToVercel(projectName, repoInfo, dbInfo, { connectGit, isFirstDeploy } = {}) {
-  try {
-    const { githubUser } = repoInfo;
-    
-    // Link project to Vercel (creates the project if it doesn't exist)
-    console.log(chalk.gray('  → Linking project to Vercel...'));
-    await execAsync(`vercel link --yes`);
-
-    // Optional: Connect Git via Vercel API if requested. If token is missing, try to create one via CLI.
-    if (connectGit) {
+      await execAsync('gh auth status');
+      status.canCreateRepo = true;
+      status.platform = 'github';
+    } catch {
+      // Check GitLab CLI
       try {
-        const fs = await import('fs-extra');
-        // Ensure we have a token for API calls
-        if (!process.env.VERCEL_TOKEN) {
-          console.log(chalk.gray('  → Creating Vercel token for API operations...'));
-          try {
-            const tokenName = `bit2-${projectName}-${Date.now()}`;
-            const { stdout: tokenOut } = await execAsync(`vercel tokens add ${tokenName} | cat`);
-            const tokenMatch = tokenOut.match(/[A-Za-z0-9._-]{24,}/);
-            if (tokenMatch) {
-              process.env.VERCEL_TOKEN = tokenMatch[0];
-              // Persist to .env.local for future runs
-              const existing = (await fs.pathExists('.env.local')) ? await fs.readFile('.env.local', 'utf8') : '';
-              const lines = existing.split('\n').filter(Boolean).filter(l => !l.startsWith('VERCEL_TOKEN='));
-              lines.push(`VERCEL_TOKEN=${process.env.VERCEL_TOKEN}`);
-              await fs.writeFile('.env.local', lines.join('\n') + '\n');
-              console.log(chalk.gray('  → Saved VERCEL_TOKEN to .env.local'));
-            } else {
-              throw new Error('Could not parse token from vercel output');
-            }
-          } catch (e) {
-            console.log(chalk.yellow('  ⚠ Could not automatically create Vercel token. Connect Git in the dashboard instead.'));
-          }
-        }
-
-        // Proceed only if we have a token
-        if (process.env.VERCEL_TOKEN) {
-          console.log(chalk.gray('  → Connecting GitHub repo to Vercel project...'));
-          // Get project id from .vercel/project.json written by `vercel link`
-          let projectId = null;
-          try {
-            const projectConfig = await fs.readJson('.vercel/project.json');
-            projectId = projectConfig.projectId || projectConfig.project?.id || null;
-          } catch {}
-          
-          if (!projectId) {
-            // Fallback: try to find by name via deployments list (best-effort)
-            try {
-              const { stdout: projJson } = await execAsync(`vercel ls ${projectName} --json | cat`);
-              const proj = JSON.parse(projJson);
-              projectId = proj?.projectId || null;
-            } catch {}
-          }
-
-          if (projectId) {
-            const repoSlug = `${githubUser}/${projectName}`;
-            const payload = JSON.stringify({ gitRepository: { type: 'github', repo: repoSlug } });
-            await execAsync(`curl -sS -X PATCH \
-              -H 'Authorization: Bearer ${process.env.VERCEL_TOKEN}' \
-              -H 'Content-Type: application/json' \
-              --data '${payload}' \
-              https://api.vercel.com/v9/projects/${projectId}`);
-            console.log(chalk.green('  ✓ GitHub repository connected in Vercel'));
-            // Trigger a deploy via empty commit
-            try {
-              await execAsync(`git commit --allow-empty -m "Trigger Vercel deploy"`);
-            } catch {}
-            try {
-              await execAsync('git push');
-              console.log(chalk.gray('  → Triggered deployment via git push'));
-            } catch {}
-          }
-        }
+        await execAsync('glab auth status');
+        status.canCreateRepo = true;
+        status.platform = 'gitlab';
       } catch {
-        console.log(chalk.yellow('  ⚠ Could not auto-connect Git. You can connect it in Vercel → Project Settings → Git.'));
+        // No CLI tools configured
       }
     }
+  }
+  
+  // Offer repo creation if possible
+  if (!status.hasRemote && status.canCreateRepo) {
+    const creationResult = await offerGitRepoCreation(status.platform, projectName);
+    status.repoCreatedAndPushed = creationResult.createdAndPushed;
     
-    // Set environment variables only on first deploy; skip if they already exist
-    if (isFirstDeploy && dbInfo?.databaseUrl && dbInfo?.authToken) {
-      console.log(chalk.gray('  → Setting environment variables...'));
-      await execAsync(`printf %s "${dbInfo.databaseUrl}" | vercel env add TURSO_DATABASE_URL production`);
-      await execAsync(`printf %s "${dbInfo.authToken}" | vercel env add TURSO_AUTH_TOKEN production`);
-      await execAsync(`printf %s "${dbInfo.databaseUrl}" | vercel env add TURSO_DATABASE_URL preview`);
-      await execAsync(`printf %s "${dbInfo.authToken}" | vercel env add TURSO_AUTH_TOKEN preview`);
+    // Check if remote was created
+    try {
+      const { stdout } = await execAsync('git remote get-url origin');
+      status.hasRemote = true;
+      status.remoteUrl = stdout.trim();
+    } catch {
+      // Still no remote
     }
-    
-    // Deploy to production - non-interactive
-    console.log(chalk.gray('  → Deploying to production...'));
-    const { stdout } = await execAsync(`vercel --prod --yes`, { timeout: 300000 }); // 5 minute timeout
-    
-    // Extract URL from stdout - Vercel always outputs deployment URL to stdout
-    let url = stdout.trim();
-    
-    // Ensure it's a proper URL
-    if (!url.startsWith('https://')) {
-      // Fallback if parsing fails
-      url = `https://${projectName}.vercel.app`;
-    }
-    
-    return { url, output: stdout };
+  }
+  
+  return status;
+}
+
+async function offerGitRepoCreation(platform, projectName) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  
+  return new Promise((resolve) => {
+    const question = platform === 'github' 
+      ? `Create private GitHub repository? (Y/n): `
+      : `Create private GitLab repository? (Y/n): `;
+      
+    rl.question(chalk.cyan(question), async (answer) => {
+      rl.close();
+      
+      if (!answer || answer.toLowerCase() === 'y' || answer.toLowerCase() === 'yes') {
+        try {
+          if (platform === 'github') {
+            await execAsync(`gh repo create ${projectName} --private --source=. --remote=origin --push`);
+            console.log(chalk.green('✓ GitHub repository created and pushed'));
+            resolve({ createdAndPushed: true });
+            return;
+          } else if (platform === 'gitlab') {
+            await execAsync(`glab repo create ${projectName} --private`);
+            console.log(chalk.green('✓ GitLab repository created'));
+            resolve({ createdAndPushed: false }); // GitLab CLI doesn't auto-push
+            return;
+          }
+        } catch (error) {
+          console.log(chalk.red(`❌ Failed to create repository: ${error.message}`));
+          
+          // Handle specific error cases
+          if (error.message.includes('Name already exists')) {
+            const err = new Error(`Repository name '${projectName}' already exists on your account`);
+            err.recoverySteps = [
+              `Choose a different project name`,
+              `Or use existing repository manually`,
+              `Run: git remote add origin <your-existing-repo-url>`,
+              `Run: git push -u origin main`
+            ];
+            throw err;
+          } else {
+            const err = new Error(`Repository creation failed: ${error.message}`);
+            err.recoverySteps = [
+              `Create repository manually on ${platform === 'github' ? 'GitHub' : 'GitLab'}`,
+              `Run: git remote add origin <your-repo-url>`,
+              `Run: git push -u origin main`,
+              `Re-run: bit2 deploy`
+            ];
+            throw err;
+          }
+        }
+      }
+      resolve({ createdAndPushed: false });
+    });
+  }).catch(error => {
+    // Re-throw the error to stop deployment
+    throw error;
+  });
+}
+
+async function showDeploymentGuide(provider, dbInfo, gitStatus) {
+  console.log();
+  console.log(chalk.bold.green('🎉 DEPLOYMENT SETUP COMPLETE!'));
+  console.log();
+  
+  console.log(chalk.cyan('📋 Deployment Configuration:'));
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log(chalk.white(`Database: ${dbInfo.databaseUrl.split('//')[1].split('.')[0]}`));
+  console.log(chalk.gray(`TURSO_DATABASE_URL=${dbInfo.databaseUrl}`));
+  console.log(chalk.gray(`TURSO_AUTH_TOKEN=${dbInfo.authToken}`));
+  console.log();
+  
+  // Create .env file for easy copying
+  try {
+    const fs = await import('fs-extra');
+    const envContent = `# Environment variables for production deployment\nTURSO_DATABASE_URL=${dbInfo.databaseUrl}\nTURSO_AUTH_TOKEN=${dbInfo.authToken}\n`;
+    await fs.writeFile('.env', envContent);
+    console.log(chalk.green('✓ Environment variables saved to .env file'));
+    console.log();
   } catch (error) {
-    console.log(chalk.red('Vercel deployment error:'), error.message);
-    if (error.stdout) {
-      console.log(chalk.gray('Vercel stdout:'), error.stdout);
+    console.log(chalk.yellow('⚠ Could not create .env file - copy the values above manually'));
+    console.log();
+  }
+  
+  console.log(chalk.cyan('💡 Next Steps:'));
+  
+  if (!gitStatus.hasRemote) {
+    console.log(chalk.yellow('1. Push your code to a Git repository'));
+    console.log(chalk.gray('   • Create repo on GitHub, GitLab, or Bitbucket'));
+    console.log(chalk.gray('   • Add as remote: git remote add origin <your-repo-url>'));
+    console.log(chalk.gray('   • Push: git push -u origin main'));
+    console.log();
+  } else if (gitStatus.repoCreatedAndPushed) {
+    console.log(chalk.green('✓ Git repository created and code pushed'));
+  } else {
+    console.log(chalk.green('✓ Git repository configured'));
+  }
+  
+  console.log(chalk.yellow(`2. Deploy to ${provider.charAt(0).toUpperCase() + provider.slice(1)}`));
+  
+  // Read deployment steps from markdown file
+  try {
+    const fs = await import('fs-extra');
+    const deploymentGuideMap = {
+      cloudflare: 'cloudflare-pages.md',
+      vercel: 'vercel.md', 
+      netlify: 'netlify.md'
+    };
+    
+    const guidePath = `./src/content/deployment/${deploymentGuideMap[provider]}`;
+    if (await fs.pathExists(guidePath)) {
+      const guideContent = await fs.readFile(guidePath, 'utf8');
+      const quickSteps = extractQuickSteps(guideContent);
+      if (quickSteps.length > 0) {
+        quickSteps.forEach(step => {
+          console.log(chalk.gray(`   • ${step}`));
+        });
+      } else {
+        // Fallback to simple instructions
+        console.log(chalk.gray('   • Connect your Git repository'));
+        console.log(chalk.gray('   • Add environment variables (from .env file or shown above)'));
+        console.log(chalk.gray('   • Deploy!'));
+      }
     }
-    if (error.stderr) {
-      console.log(chalk.gray('Vercel stderr:'), error.stderr);
+  } catch (error) {
+    // Fallback to simple instructions
+    console.log(chalk.gray('   • Connect your Git repository'));
+    console.log(chalk.gray('   • Add environment variables (from .env file or shown above)'));
+    console.log(chalk.gray('   • Deploy!'));
+  }
+  console.log();
+  
+  console.log(chalk.cyan('📖 Detailed deployment guide:'));
+  console.log(chalk.gray('   • Run: bit2 dev'));
+  console.log(chalk.gray('   • Open your browser: http://localhost:4321'));
+  console.log(chalk.gray(`   • View ${provider} deployment instructions`));
+  console.log();
+  
+  console.log(chalk.green('✨ Your project is ready!'));
+  console.log();
+}
+
+// Extract essential deployment steps from markdown
+function extractQuickSteps(markdownContent) {
+  const steps = [];
+  const lines = markdownContent.split('\n');
+  
+  // Extract steps from Step 2, 3, 4, and 5 sections
+  let currentStep = null;
+  let stepCounter = 0;
+  
+  for (const line of lines) {
+    // Detect step sections
+    if (line.match(/^## Step [2-5]:/)) {
+      currentStep = line.replace(/^## /, '').replace(/Step \d+: /, '');
+      stepCounter = 0;
+      continue;
     }
     
-    const err = new Error(`Deployment to Vercel failed: ${error.message}`);
-    err.recoverySteps = [
-      'Check build output for errors above',
-      'Verify project builds locally: bun run build',
-      'Ensure you\'re logged in: vercel login',
-      'Try manual deployment: vercel --prod'
-    ];
-    throw err;
+    // Stop at Step 6 or later sections
+    if (line.startsWith('## Step ') && line.match(/Step [6-9]:/)) {
+      break;
+    }
+    
+    // Stop at non-step sections after we've started collecting
+    if (currentStep && line.startsWith('## ') && !line.match(/^## Step [2-5]:/)) {
+      break;
+    }
+    
+    // Extract numbered items from current step (limit to 6 total quick steps)
+    if (currentStep && /^\d+\. /.test(line.trim()) && steps.length < 6) {
+      stepCounter++;
+      // Only take first 2 items from each step section to keep it concise
+      if (stepCounter <= 2) {
+        let step = line.trim()
+          .replace(/^\d+\. /, '')
+          .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
+          .replace(/`([^`]+)`/g, '$1'); // Remove code formatting
+        
+        // Extract and preserve links - convert [text](url) to text (url)
+        step = step.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');
+        
+        // Just use the step text without redundant prefixes
+        steps.push(step);
+      }
+    }
+  }
+  
+  return steps;
+}
+
+async function saveDeploymentInfo(projectName, provider, dbInfo) {
+  try {
+    const fs = await import('fs-extra');
+    const envContent = `# bit2 deployment configuration\nBIT2_PROJECT_NAME=${projectName}\nBIT2_PROVIDER=${provider}\nBIT2_TURSO_DATABASE=${projectName}\nBIT2_TURSO_DATABASE_URL=${dbInfo.databaseUrl}\nBIT2_TURSO_AUTH_TOKEN=${dbInfo.authToken}\nBIT2_CREATED_AT=${new Date().toISOString()}\n`;
+    await fs.writeFile('.env.bit2', envContent);
+  } catch (error) {
+    console.log(chalk.yellow('⚠ Could not save deployment configuration'));
   }
 }
 
-function displaySuccessMessage(projectName, deployInfo, dbInfo) {
-  console.log();
-  console.log(chalk.bold.green('🎉 DEPLOYMENT SUCCESSFUL!'));
-  console.log();
+async function handleSubsequentDeploy() {
+  // Check git status
+  try {
+    const { stdout } = await execAsync('git status --porcelain');
+    if (stdout.trim()) {
+      console.log(chalk.red('❌ You have uncommitted changes'));
+      console.log();
+      console.log(chalk.yellow('Please commit your changes first:'));
+      console.log(chalk.gray('  git add .'));
+      console.log(chalk.gray('  git commit -m "Your commit message"'));
+      console.log(chalk.gray('  bit2 deploy OR git push (will be deployed automatically)'));
+      console.log();
+      process.exit(1);
+    }
+  } catch (error) {
+    console.log(chalk.red('❌ Error checking git status'));
+    console.log(chalk.gray('Make sure you\'re in a git repository'));
+    process.exit(1);
+  }
   
-  console.log(chalk.cyan('📦 Project:'), chalk.white(projectName));
-  console.log(chalk.cyan('🌐 Live URL:'), chalk.underline.blue(deployInfo.url));
-  console.log(chalk.cyan('📊 Dashboard:'), chalk.underline.blue(`https://vercel.com/dashboard`));
-  console.log();
-  
-    console.log(chalk.bold.green('✅ VERCEL DEPLOYMENT CONFIGURED'));
-  console.log();
-  console.log(chalk.yellow('🚀 Auto-deployment is now active!'));
-    console.log(chalk.gray('  • Connect Git in Vercel to auto-deploy on push'));
-  console.log(chalk.gray('  • Pull requests get preview deployments'));
-  console.log(chalk.gray('  • Build logs are available in Vercel dashboard'));
-  console.log();
-  
-  console.log(chalk.bold.blue('NEXT STEPS'));
-  console.log();
-  console.log(chalk.yellow('✨ Your app is live and ready for development!'));
-  console.log(chalk.gray('  • Test your app:'), chalk.white('Visit the URL above'));
-  console.log(chalk.gray('  • Auto-deploy:'), chalk.white('git push origin main'));
-  console.log(chalk.gray('  • View deployments:'), chalk.white('vercel ls'));
-  console.log(chalk.gray('  • View logs:'), chalk.white('vercel logs'));
-  console.log(chalk.gray('  • Local dev:'), chalk.white('bun dev'));
-  console.log(chalk.gray('  • Check status:'), chalk.white('bit2 status'));
-  console.log();
-  
-  console.log(chalk.green('🚀 Your modern web app is ready for the world!'));
-  console.log();
+  // Push changes
+  let spinner = new TimedSpinner('Pushing changes');
+  try {
+    await execAsync('git push');
+    spinner.succeed('Changes pushed - deployment triggered automatically');
+    console.log();
+  } catch (error) {
+    spinner.fail('Failed to push changes');
+    console.log();
+    console.log(chalk.red('❌ Git push failed'));
+    console.log(chalk.yellow('Please check your git configuration and try again'));
+    process.exit(1);
+  }
 }
