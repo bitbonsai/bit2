@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="https://bitbons.ai/bit-logo.svg" alt="bit2 logo" width="50%" />
+<img src="https://bitbons.ai/bit-logo.svg" alt="bit2 logo" style="scale: .5">
 
 **A modern CLI tool for scaffolding Astro applications with libSQL/Turso database integration and flexible deployment options**
 
