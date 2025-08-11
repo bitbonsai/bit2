@@ -172,8 +172,8 @@ async function selectProvider() {
   console.log();
   console.log(chalk.cyan('Choose your deployment provider:'));
   console.log(chalk.white('  [1] Cloudflare Pages'));
-  console.log(chalk.white('  [2] Vercel'));
-  console.log(chalk.white('  [3] Netlify'));
+  console.log(chalk.white('  [2] Netlify'));
+  console.log(chalk.white('  [3] Vercel'));
   console.log();
   
   const rl = readline.createInterface({
@@ -191,11 +191,11 @@ async function selectProvider() {
             break;
           case '2':
             rl.close();
-            resolve('vercel');
+            resolve('netlify');
             break;
           case '3':
             rl.close();
-            resolve('netlify');
+            resolve('vercel');
             break;
           default:
             console.log(chalk.red('Please enter 1, 2, or 3'));
@@ -210,7 +210,7 @@ async function selectProvider() {
 async function installAdapter(provider) {
   const adapters = {
     cloudflare: '@astrojs/cloudflare',
-    vercel: '@astrojs/vercel/serverless',
+    vercel: '@astrojs/vercel',
     netlify: '@astrojs/netlify'
   };
   
@@ -248,7 +248,7 @@ export default defineConfig({
   }
 });`,
     vercel: `import { defineConfig } from 'astro/config';
-import vercel from '@astrojs/vercel/serverless';
+import vercel from '@astrojs/vercel';
 
 // https://astro.build/config  
 export default defineConfig({
