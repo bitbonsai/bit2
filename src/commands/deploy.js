@@ -702,7 +702,13 @@ async function showDeploymentGuide(provider, dbInfo, gitStatus) {
     console.log(chalk.green('✓ Git repository configured'));
   }
   
-  console.log(chalk.yellow(`2. Deploy to ${provider.charAt(0).toUpperCase() + provider.slice(1)}`));
+  const providerDashboards = {
+    cloudflare: 'https://dash.cloudflare.com',
+    vercel: 'https://vercel.com/new',
+    netlify: 'https://app.netlify.com'
+  };
+  
+  console.log(chalk.yellow(`2. Deploy to ${provider.charAt(0).toUpperCase() + provider.slice(1)} (${providerDashboards[provider]})`));
   console.log(chalk.gray('   • Connect your Git repository'));
   console.log(chalk.gray('   • Add environment variables from .env file'));
   console.log(chalk.gray('   • Deploy your application'));
