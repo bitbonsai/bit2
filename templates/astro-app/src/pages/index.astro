@@ -10,9 +10,14 @@ const deploymentGuides = await getCollection('deployment');
 // bit2 version (replaced during project creation)
 const version = 'BIT2_VERSION_PLACEHOLDER';
 
+// Sort deployment guides alphabetically by title
+const sortedGuides = deploymentGuides.sort((a, b) => 
+  a.data.title.localeCompare(b.data.title)
+);
+
 // Render the markdown content for each guide
 const renderedGuides = await Promise.all(
-  deploymentGuides.map(async (guide) => {
+  sortedGuides.map(async (guide) => {
     const { Content } = await guide.render();
     return {
       ...guide,
