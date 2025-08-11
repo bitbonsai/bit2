@@ -2,6 +2,9 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { newCommand } from './commands/new.js';
 import { devCommand } from './commands/dev.js';
 import { buildCommand } from './commands/build.js';
@@ -14,12 +17,17 @@ import { openCommand } from './commands/open.js';
 import { logsCommand } from './commands/logs.js';
 import { dbCommand } from './commands/db.js';
 
+// Read version from package.json
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 'utf8'));
+
 const program = new Command();
 
 program
   .name('bit2')
   .description('∴ bit2 - Modern CLI tool for scaffolding Astro applications with libSQL/Turso and flexible deployment')
-  .version('3.0.2')
+  .version(packageJson.version)
   .addHelpText('after', '\n' +
     'Repository: https://github.com/bitbonsai/bit2\n' +
     'Issues:     https://github.com/bitbonsai/bit2/issues');
