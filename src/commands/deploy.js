@@ -56,8 +56,14 @@ export async function deployCommand(options = {}) {
     
     // 5. Setup Turso database
     spinner = new TimedSpinner('Setting up Turso database');
-    const dbInfo = await setupTursoDatabase(projectInfo.name);
-    spinner.succeed('Turso database setup complete');
+    let dbInfo;
+    try {
+      dbInfo = await setupTursoDatabase(projectInfo.name);
+      spinner.succeed('Turso database setup complete');
+    } catch (error) {
+      spinner.fail('Turso database setup failed');
+      throw error;
+    }
     
     // 6. Check Git environment and offer repo creation
     const gitStatus = await checkGitEnvironment(projectInfo.name);
@@ -298,12 +304,37 @@ async function setupTursoDatabase(projectName) {
   
   // Check authentication
   try {
-    await execAsync('turso auth whoami');
+    const { stdout } = await execAsync('turso auth whoami');
+    // Check if the output indicates not logged in
+    if (stdout.includes('You are not logged in') || stdout.includes('not logged in')) {
+      const err = new Error('You are not logged in');
+      err.recoverySteps = [
+        'Run: turso auth login',
+        'Follow the login process',
+        'Re-run: bit2 deploy'
+      ];
+      throw err;
+    }
   } catch (error) {
+    // If the command itself fails or returns an error
+    if (error.message.includes('You are not logged in') || 
+        error.message.includes('not logged in') ||
+        error.stdout?.includes('You are not logged in') ||
+        error.stderr?.includes('You are not logged in')) {
+      const err = new Error('You are not logged in');
+      err.recoverySteps = [
+        'Run: turso auth login',
+        'Follow the login process', 
+        'Re-run: bit2 deploy'
+      ];
+      throw err;
+    }
+    
+    // For other auth errors
     const err = new Error('Turso authentication required');
     err.recoverySteps = [
-      'Run: turso auth signup',
-      'Follow the signup process',
+      'Run: turso auth login (or turso auth signup if you don\'t have an account)',
+      'Follow the authentication process',
       'Re-run: bit2 deploy'
     ];
     throw err;
@@ -316,17 +347,66 @@ async function setupTursoDatabase(projectName) {
     databaseExists = true;
     console.log(chalk.yellow(`  ℹ Using existing Turso database: ${dbName}`));
   } catch (error) {
+    // Check if this is an auth error
+    if (error.message.includes('You are not logged in') || 
+        error.message.includes('not logged in') ||
+        error.stdout?.includes('You are not logged in') ||
+        error.stderr?.includes('You are not logged in')) {
+      const err = new Error('You are not logged in, please login with turso auth login before running other commands.');
+      err.recoverySteps = [
+        'Run: turso auth login',
+        'Follow the login process',
+        'Re-run: bit2 deploy'
+      ];
+      throw err;
+    }
+    
     // Database doesn't exist, create it
-    await execAsync(`turso db create ${dbName}`);
+    try {
+      await execAsync(`turso db create ${dbName}`);
+    } catch (createError) {
+      // Check if creation failed due to auth
+      if (createError.message.includes('You are not logged in') || 
+          createError.message.includes('not logged in') ||
+          createError.stdout?.includes('You are not logged in') ||
+          createError.stderr?.includes('You are not logged in')) {
+        const err = new Error('You are not logged in, please login with turso auth login before running other commands.');
+        err.recoverySteps = [
+          'Run: turso auth login',
+          'Follow the login process',
+          'Re-run: bit2 deploy'
+        ];
+        throw err;
+      }
+      throw createError;
+    }
   }
   
   // Get database URL
-  const { stdout: urlOutput } = await execAsync(`turso db show --url ${dbName}`);
-  const databaseUrl = urlOutput.trim();
-  
-  // Create auth token
-  const { stdout: tokenOutput } = await execAsync(`turso db tokens create ${dbName}`);
-  const authToken = tokenOutput.trim();
+  let databaseUrl, authToken;
+  try {
+    const { stdout: urlOutput } = await execAsync(`turso db show --url ${dbName}`);
+    databaseUrl = urlOutput.trim();
+    
+    // Create auth token
+    const { stdout: tokenOutput } = await execAsync(`turso db tokens create ${dbName}`);
+    authToken = tokenOutput.trim();
+  } catch (error) {
+    // Check if this is an auth error
+    if (error.message.includes('You are not logged in') || 
+        error.message.includes('not logged in') ||
+        error.stdout?.includes('You are not logged in') ||
+        error.stderr?.includes('You are not logged in')) {
+      const err = new Error('You are not logged in, please login with turso auth login before running other commands.');
+      err.recoverySteps = [
+        'Run: turso auth login',
+        'Follow the login process',
+        'Re-run: bit2 deploy'
+      ];
+      throw err;
+    }
+    throw error;
+  }
   
   // Run migrations if database is new
   if (!databaseExists) {
@@ -531,20 +611,41 @@ async function showDeploymentGuide(provider, dbInfo, gitStatus) {
   
   console.log(chalk.cyan('📋 Deployment Configuration:'));
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(chalk.white(`Database: ${dbInfo.databaseUrl.split('//')[1].split('.')[0]}`));
-  console.log(chalk.gray(`TURSO_DATABASE_URL=${dbInfo.databaseUrl}`));
-  console.log(chalk.gray(`TURSO_AUTH_TOKEN=${dbInfo.authToken}`));
+  
+  // Safely extract database name
+  let dbDisplayName = 'Unknown';
+  if (dbInfo && dbInfo.databaseUrl) {
+    try {
+      const urlParts = dbInfo.databaseUrl.split('//');
+      if (urlParts[1]) {
+        dbDisplayName = urlParts[1].split('.')[0];
+      }
+    } catch (e) {
+      dbDisplayName = dbInfo.dbName || 'Unknown';
+    }
+  } else if (dbInfo && dbInfo.dbName) {
+    dbDisplayName = dbInfo.dbName;
+  }
+  
+  console.log(chalk.white(`Database: ${dbDisplayName}`));
+  console.log(chalk.gray(`TURSO_DATABASE_URL=${dbInfo.databaseUrl || 'Not available'}`));
+  console.log(chalk.gray(`TURSO_AUTH_TOKEN=${dbInfo.authToken || 'Not available'}`));
   console.log();
   
   // Create .env file for easy copying
-  try {
-    const fs = await import('fs-extra');
-    const envContent = `# Environment variables for production deployment\nTURSO_DATABASE_URL=${dbInfo.databaseUrl}\nTURSO_AUTH_TOKEN=${dbInfo.authToken}\n`;
-    await fs.writeFile('.env', envContent);
-    console.log(chalk.green('✓ Environment variables saved to .env file'));
-    console.log();
-  } catch (error) {
-    console.log(chalk.yellow('⚠ Could not create .env file - copy the values above manually'));
+  if (dbInfo && dbInfo.databaseUrl && dbInfo.authToken) {
+    try {
+      const fs = await import('fs-extra');
+      const envContent = `# Environment variables for production deployment\nTURSO_DATABASE_URL=${dbInfo.databaseUrl}\nTURSO_AUTH_TOKEN=${dbInfo.authToken}\n`;
+      await fs.writeFile('.env', envContent);
+      console.log(chalk.green('✓ Environment variables saved to .env file'));
+      console.log();
+    } catch (error) {
+      console.log(chalk.yellow('⚠ Could not create .env file - copy the values above manually'));
+      console.log();
+    }
+  } else {
+    console.log(chalk.yellow('⚠ Database credentials not available - .env file not created'));
     console.log();
   }
   
@@ -658,7 +759,7 @@ function extractQuickSteps(markdownContent) {
 async function saveDeploymentInfo(projectName, provider, dbInfo) {
   try {
     const fs = await import('fs-extra');
-    const envContent = `# bit2 deployment configuration\nBIT2_PROJECT_NAME=${projectName}\nBIT2_PROVIDER=${provider}\nBIT2_TURSO_DATABASE=${dbInfo.dbName}\nBIT2_TURSO_DATABASE_URL=${dbInfo.databaseUrl}\nBIT2_TURSO_AUTH_TOKEN=${dbInfo.authToken}\nBIT2_CREATED_AT=${new Date().toISOString()}\n`;
+    const envContent = `# bit2 deployment configuration\nBIT2_PROJECT_NAME=${projectName}\nBIT2_PROVIDER=${provider}\nBIT2_TURSO_DATABASE=${dbInfo?.dbName || 'unknown'}\nBIT2_TURSO_DATABASE_URL=${dbInfo?.databaseUrl || ''}\nBIT2_TURSO_AUTH_TOKEN=${dbInfo?.authToken || ''}\nBIT2_CREATED_AT=${new Date().toISOString()}\n`;
     await fs.writeFile('.env.bit2', envContent);
   } catch (error) {
     console.log(chalk.yellow('⚠ Could not save deployment configuration'));
