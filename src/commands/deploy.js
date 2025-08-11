@@ -5,7 +5,23 @@ import { TimedSpinner } from '../utils/spinner.js';
 import readline from 'readline';
 import path from 'path';
 
-const execAsync = promisify(exec);
+// Custom execAsync with larger buffer for commands that may produce lots of output
+const execAsync = (command, options = {}) => {
+  return new Promise((resolve, reject) => {
+    exec(command, { 
+      maxBuffer: 10 * 1024 * 1024, // 10MB buffer instead of default 1MB
+      ...options 
+    }, (error, stdout, stderr) => {
+      if (error) {
+        error.stdout = stdout;
+        error.stderr = stderr;
+        reject(error);
+      } else {
+        resolve({ stdout, stderr });
+      }
+    });
+  });
+};
 
 export async function deployCommand(options = {}) {
   let spinner;
@@ -496,8 +512,31 @@ async function checkGitEnvironment(projectName) {
     // Initialize git repo
     console.log(chalk.gray('  ℹ Initializing git repository...'));
     await execAsync('git init');
-    await execAsync('git add .');
-    await execAsync('git commit -m "Initial commit"');
+    
+    // Add files in smaller batches to avoid buffer overflow
+    const fs = await import('fs-extra');
+    
+    // First, ensure we have a .gitignore
+    if (!await fs.pathExists('.gitignore')) {
+      await fs.copy(path.join(process.cwd(), '.gitignore'), '.gitignore').catch(() => {});
+    }
+    
+    // Add files more selectively to avoid buffer issues
+    try {
+      // Add specific directories and files rather than everything at once
+      await execAsync('git add .gitignore package.json tsconfig.json astro.config.mjs README.md 2>/dev/null || true');
+      await execAsync('git add src/ 2>/dev/null || true');
+      await execAsync('git add public/ 2>/dev/null || true');
+      
+      // Commit with a simple message
+      await execAsync('git commit -m "Initial commit" --quiet');
+    } catch (gitError) {
+      // Fallback to adding everything if selective add fails
+      console.log(chalk.yellow('  ⚠ Large project detected, this may take a moment...'));
+      await execAsync('git add . --verbose');
+      await execAsync('git commit -m "Initial commit" --quiet');
+    }
+    
     status.hasRepo = true;
   }
   
@@ -664,97 +703,24 @@ async function showDeploymentGuide(provider, dbInfo, gitStatus) {
   }
   
   console.log(chalk.yellow(`2. Deploy to ${provider.charAt(0).toUpperCase() + provider.slice(1)}`));
-  
-  // Read deployment steps from markdown file
-  try {
-    const fs = await import('fs-extra');
-    const deploymentGuideMap = {
-      cloudflare: 'cloudflare-pages.md',
-      vercel: 'vercel.md', 
-      netlify: 'netlify.md'
-    };
-    
-    const guidePath = `./src/content/deployment/${deploymentGuideMap[provider]}`;
-    if (await fs.pathExists(guidePath)) {
-      const guideContent = await fs.readFile(guidePath, 'utf8');
-      const quickSteps = extractQuickSteps(guideContent);
-      if (quickSteps.length > 0) {
-        quickSteps.forEach(step => {
-          console.log(chalk.gray(`   • ${step}`));
-        });
-      } else {
-        // Fallback to simple instructions
-        console.log(chalk.gray('   • Connect your Git repository'));
-        console.log(chalk.gray('   • Add environment variables (from .env file or shown above)'));
-        console.log(chalk.gray('   • Deploy!'));
-      }
-    }
-  } catch (error) {
-    // Fallback to simple instructions
-    console.log(chalk.gray('   • Connect your Git repository'));
-    console.log(chalk.gray('   • Add environment variables (from .env file or shown above)'));
-    console.log(chalk.gray('   • Deploy!'));
-  }
+  console.log(chalk.gray('   • Connect your Git repository'));
+  console.log(chalk.gray('   • Add environment variables from .env file'));
+  console.log(chalk.gray('   • Deploy your application'));
   console.log();
   
   console.log(chalk.cyan('📖 Detailed deployment guide:'));
-  console.log(chalk.gray('   • Run: bit2 dev'));
-  console.log(chalk.gray('   • Open your browser: http://localhost:4321'));
-  console.log(chalk.gray(`   • View ${provider} deployment instructions`));
+  const providerUrls = {
+    cloudflare: 'https://bit2-cli.org/cloudflare',
+    vercel: 'https://bit2-cli.org/vercel',
+    netlify: 'https://bit2-cli.org/netlify'
+  };
+  console.log(chalk.gray(`   • ${providerUrls[provider]}`));
   console.log();
   
   console.log(chalk.green('✨ Your project is ready!'));
   console.log();
 }
 
-// Extract essential deployment steps from markdown
-function extractQuickSteps(markdownContent) {
-  const steps = [];
-  const lines = markdownContent.split('\n');
-  
-  // Extract steps from Step 2, 3, 4, and 5 sections
-  let currentStep = null;
-  let stepCounter = 0;
-  
-  for (const line of lines) {
-    // Detect step sections
-    if (line.match(/^## Step [2-5]:/)) {
-      currentStep = line.replace(/^## /, '').replace(/Step \d+: /, '');
-      stepCounter = 0;
-      continue;
-    }
-    
-    // Stop at Step 6 or later sections
-    if (line.startsWith('## Step ') && line.match(/Step [6-9]:/)) {
-      break;
-    }
-    
-    // Stop at non-step sections after we've started collecting
-    if (currentStep && line.startsWith('## ') && !line.match(/^## Step [2-5]:/)) {
-      break;
-    }
-    
-    // Extract numbered items from current step (limit to 6 total quick steps)
-    if (currentStep && /^\d+\. /.test(line.trim()) && steps.length < 6) {
-      stepCounter++;
-      // Only take first 2 items from each step section to keep it concise
-      if (stepCounter <= 2) {
-        let step = line.trim()
-          .replace(/^\d+\. /, '')
-          .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold formatting
-          .replace(/`([^`]+)`/g, '$1'); // Remove code formatting
-        
-        // Extract and preserve links - convert [text](url) to text (url)
-        step = step.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1 ($2)');
-        
-        // Just use the step text without redundant prefixes
-        steps.push(step);
-      }
-    }
-  }
-  
-  return steps;
-}
 
 async function saveDeploymentInfo(projectName, provider, dbInfo) {
   try {

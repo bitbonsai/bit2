@@ -12,8 +12,8 @@ Netlify provides powerful deployment features with excellent developer tools and
 
 ## Prerequisites
 
-- Netlify account (free at [netlify.com](https://netlify.com))
-- Git repository (GitHub, GitLab, or Bitbucket)
+- Free Netlify account (get yours at [netlify.com](https://netlify.com))
+- Git repository ([GitHub](https://github.com), [GitLab](https://gitlab.com), or [Bitbucket](https://bitbucket.com)) - Create a free account
 - Turso database credentials (created by `bit2 deploy`)
 
 ## Step 1: Push to Git Repository

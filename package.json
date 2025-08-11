@@ -1,6 +1,6 @@
 {
   "name": "bit2-cli",
-  "version": "3.0.3",
+  "version": "3.0.4",
   "description": "A modern CLI tool for scaffolding Astro applications with libSQL/Turso database integration and flexible deployment to Cloudflare Pages, Vercel, or Netlify",
   "main": "src/cli.js",
   "bin": {

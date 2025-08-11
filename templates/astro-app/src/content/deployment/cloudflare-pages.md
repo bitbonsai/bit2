@@ -12,9 +12,9 @@ Cloudflare Pages provides fast, secure hosting with global CDN and automatic HTT
 
 ## Prerequisites
 
-- Cloudflare account (free at [cloudflare.com](https://cloudflare.com))
-- Git repository (GitHub, GitLab, or Bitbucket)
-- Turso database credentials (created by `bit2 deploy`)
+- Free Cloudflare account (cloudflare.com](https://cloudflare.com))
+- Git repository ([GitHub](https://github.com), [GitLab](https://gitlab.com), or [Bitbucket](https://bitbucket.com)) - Create a free account
+- [Turso](https://turso.tech) database credentials (created by `bit2 deploy`)
 
 ## Step 1: Push to Git Repository
 
@@ -32,12 +32,12 @@ git push -u origin main
 
 1. Go to [Cloudflare Dashboard](https://dash.cloudflare.com)
 2. Click on **Developer Platform** tab
-3. Click on **Pages** 
+3. Click on **Pages** (create a Pages project)
 4. Click **Import an existing Git repository**
 
 ## Step 3: Select Repository
 
-1. Select your repository from the list
+1. Select your repository from the list, if needed connect your `GIT` provider
 2. Click **Begin setup**
 
 ## Step 4: Configure Build Settings
@@ -56,6 +56,8 @@ git push -u origin main
 |--------------|-------|
 | `TURSO_DATABASE_URL` | Your database URL from bit2 deploy |
 | `TURSO_AUTH_TOKEN` | Your auth token from bit2 deploy |
+
+> If you need to get your Turso DB keys after deploy, run `bit2 db token`
 
 ## Step 6: Deploy
 
