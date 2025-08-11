@@ -31,7 +31,7 @@ git push -u origin main
 ## Step 2: Import to Netlify
 
 1. Go to [app.netlify.com](https://app.netlify.com)
-2. Click **Add new site** → **Import an existing project**
+2. Click **Add new project** → **Import an existing project**
 3. Choose your Git provider
 4. Authenticate if needed
 5. Select your repository
@@ -94,7 +94,7 @@ Create `netlify.toml` in your project root for more control:
   publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "22"
 
 [[headers]]
   for = "/*"

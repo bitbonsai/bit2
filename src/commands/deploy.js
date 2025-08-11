@@ -710,7 +710,7 @@ async function showDeploymentGuide(provider, dbInfo, gitStatus) {
   
   console.log(chalk.yellow(`2. Deploy to ${provider.charAt(0).toUpperCase() + provider.slice(1)} (${providerDashboards[provider]})`));
   console.log(chalk.gray('   • Connect your Git repository'));
-  console.log(chalk.gray('   • Add environment variables from .env file'));
+  console.log(chalk.gray('   • Add environment variables from .env file (tip: run "cat .env" to copy them)'));
   console.log(chalk.gray('   • Deploy your application'));
   console.log();
   
