@@ -13,7 +13,7 @@ Vercel offers seamless deployment with automatic scaling and excellent developer
 ## Prerequisites
 
 - Vercel account (free at [vercel.com](https://vercel.com))
-- Git repository (GitHub, GitLab, or Bitbucket)
+- Git repository ([GitHub](https://github.com), [GitLab](https://gitlab.com), or [Bitbucket](https://bitbucket.com)) - Create a free account
 - Turso database credentials (created by `bit2 deploy`)
 
 ## Step 1: Push to Git Repository
